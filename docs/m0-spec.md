@@ -55,7 +55,7 @@ fn load(path: Str) -> Config! {
   json.parse(text)!
 }
 
-let cfg = load("app.json") or Config.default()   // or handle it here
+let cfg = load("app.json") else Config.default()   // or handle it here
 
 // generics with constraints
 fn largest[T: Ord](items: List[T]) -> T? {
@@ -206,7 +206,7 @@ fn parse_port(s: Str) -> Int! {
 
 ```
 fn main() {
-  let port = parse_port(env("PORT") ?? "8080") or err -> {
+  let port = parse_port(env("PORT") ?? "8080") else err -> {
     log.warn("{err}, falling back to 8080")
     8080
   }
@@ -218,7 +218,7 @@ fn main() {
 
 ```
 fn main() {
-  let text = fs.read("notes.txt") or ""
+  let text = fs.read("notes.txt") else ""
   text
     |> lower()
     |> words()
@@ -281,7 +281,7 @@ test "chunk splits evenly and keeps the remainder" {
 fn main(args: List[Str]) {
   match args {
     [path]         -> tally(path, 10)
-    [path, n]      -> tally(path, int.parse(n) or 10)
+    [path, n]      -> tally(path, int.parse(n) else 10)
     _              -> print("usage: tally <file> [n]")
   }
 }
@@ -293,7 +293,7 @@ fn main(args: List[Str]) {
 type Config {
   host: Str
   port: Int
-  debug: Bool = false      // field default
+  debug: Bool
 }
 
 fn load(path: Str) -> Config! {
@@ -345,7 +345,7 @@ fn main() {
     for _ in 1..8 {
       spawn fn() {
         for url in jobs {
-          save(http.get(url) or "")
+          save(http.get(url) else "")
         }
       }
     }
@@ -364,6 +364,11 @@ type Row {
   amount: Float
 }
 
+type Summary {
+  total: Float
+  days: Int
+}
+
 fn main(args: List[Str]) {
   let dir = args[0] ?? "."
 
@@ -374,9 +379,9 @@ fn main(args: List[Str]) {
   let summary = rows
     |> filter(r -> r.amount > 0)
     |> group_by(r -> r.region)
-    |> map_values(rs -> Map{
-         "total": rs |> sum_by(r -> r.amount),
-         "days":  rs |> map(r -> r.day) |> unique() |> len(),
+    |> map_values(rs -> Summary {
+         total: rs |> sum_by(r -> r.amount),
+         days: rs |> map(r -> r.day) |> unique() |> len(),
        })
 
   fs.write("summary.json", json.encode(summary))!
@@ -401,3 +406,40 @@ These are real conflicts between this document and what now exists. None has a d
 1. `or` is overloaded. Program 9 uses it as a boolean operator (`n < 1 or n > 65535`) and programs 10, 11 and 15 use it as the failure-fallback keyword. Both are in this spec. One of them has to move.
 2. `.push` meets immutability. Program 12 calls `.push` on `var` bindings. The spec never says whether `.push` mutates in place or returns a new list, and `let` lists are immutable.
 3. `http.get` is referenced but unimplemented, and programs 18, 19 and 20 depend on network or filesystem operations that an offline acceptance run cannot perform as written.
+
+## Decisions recorded at M3 step 2
+
+Made after the M3 diff (`docs/m3-diff.md`, section D). The program texts
+above already include the changes marked "applied".
+
+1. **`or` is boolean; the failure fallback is `else`.** `and`, `or` and
+   `not` are the boolean operators. A failure is handled with
+   `x else fallback` or `x else err -> handler`. Applied to the tour and
+   programs 10, 11, 15 and 19.
+2. **`.push`** changes a `var` list in place. On a `let` list it is a
+   compile error.
+3. **`http.get` is cut.** Programs 18, 19 and 20 are rewritten against
+   local operations when the concurrency work lands, so they still show
+   scoping and cancellation without a network. Not yet applied.
+4. **`and` and `not`** come in with decision 1, although no program uses
+   them.
+5. **Type arguments may be explicit or come from context.**
+   `json.parse[Config](text)` and `json.parse(text)` where the expected
+   type says `Config` both work; `Chan[Str](100)` needs the explicit form.
+6. **`print` takes any value** that interpolation accepts: anything but a
+   failable or a function.
+7. **Fragments run with a preamble.** Each acceptance file is the program
+   text from this document verbatim, plus a separate preamble that supplies
+   only what is missing: undefined names, the program it depends on, and a
+   `main` or a call where there is none.
+8. **Program 20 uses a record, not a map, for each summary.** Its
+   `Map{"total": ..., "days": ...}` held a Float and an Int, which a typed
+   map cannot. Applied: `type Summary { total: Float  days: Int }`.
+9. **`a..b` includes both ends.** `1..100` is one to a hundred.
+10. **Methods on built-in types.** The `len` function stays, and `.len()`,
+    `.push`, `.send` and `.close` are methods on the built-in types.
+11. **Raw strings use backticks.** `` `{"port": 80}` `` has no escapes and
+    no interpolation, so JSON can be written as it is.
+
+Amendment 1 is also applied above: program 16's `debug` field has no
+default.

@@ -19,7 +19,7 @@ These are settled. Do not reopen them, do not propose alternatives, do not add e
 | Decision | Choice |
 | --- | --- |
 | Memory | Tracing GC, inherited from the host language. No manual control, no `unsafe`, not ever |
-| Errors | Values, not exceptions. A failing function returns `T!`. Call site writes `!` to propagate or `or` to handle |
+| Errors | Values, not exceptions. A failing function returns `T!`. Call site writes `!` to propagate or `else` to handle |
 | Concurrency | Green threads with structured scope. All I/O looks blocking. No async/await, no colored functions |
 | Null | Does not exist. `T?` is an option type. `??` for defaults, `?.` for chaining |
 | Mutability | `let` immutable, `var` mutable, immutable by default |
@@ -75,8 +75,8 @@ fn load(path: Str) -> Config! {
   json.parse(text)!
 }
 
-let cfg = load("app.json") or Config.default()
-let cfg = load("app.json") or err -> { log.warn("{err}"); Config.default() }
+let cfg = load("app.json") else Config.default()
+let cfg = load("app.json") else err -> { log.warn("{err}"); Config.default() }
 
 fn largest[T: Ord](items: List[T]) -> T? { ... }
 
@@ -141,7 +141,7 @@ builds from the expected type at the call (decided at the start of M2).
 The M0 spec had two halves. `CLAUDE.md` was condensed from the first (frozen decisions and a short syntax reference). The second, a one-page tour and twenty programs, is `docs/m0-spec.md` and was not available until M3. M1 and M2 were built from the first half only, which is why `if`, loops, `fail` and the collection operations were missing.
 
 1. The diff, `docs/m3-diff.md`, lists every construct the spec uses that the language lacks. It is the M3 scope; nothing outside it enters M3.
-2. The collisions it names are decided and recorded in the spec before building.
+2. The collisions it names are decided and recorded in the spec before building. Done: see "Decisions recorded at M3 step 2" in `docs/m0-spec.md`. The failure fallback is now `else`; `and`, `or`, `not` are boolean.
 3. Each construct goes through lexer, parser, checker and interpreter, with passing examples and refused cases. Where a spec program cannot run as written, the spec changes and the commit says why.
 4. Three real programs, kept and used, live outside `examples/`, each with a record of what it needed and could not have.
 
