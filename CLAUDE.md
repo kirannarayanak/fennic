@@ -139,7 +139,8 @@ The syntax reference left these open. They were approved along with `examples/`;
 - Built-ins beyond the reference: `len`, `first`, `last` (both return `T?`), `sum`, `map`, `each`.
 - `!` at top level stops the program with exit 1 and a diagnostic.
 - `json.parse` returns an untyped record in M1. How M2 names the target type is open.
-- `map_par` keeps input order, runs only inside `together`, and on failure reports the lowest-index error.
+- `map_par` keeps input order and runs only inside `together`. The first task to fail cancels the others, and its failure is reported, never a cancellation. (Approved as "lowest index"; changed during M1 because cancelled tasks cannot show whether they would have failed. With several independent failures, which is reported depends on timing.)
+- A function with no `->` result type returns nothing, whatever its last expression.
 - `log.warn` writes `warn: <msg>` to stderr.
 - `fennic test` evaluates the top level, then each test.
 - Assigning to a `let` is caught before the program runs.
