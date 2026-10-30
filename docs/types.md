@@ -196,7 +196,9 @@ failable and the first failure stops it.
 the column of the same name, in any order. An empty cell fills an optional
 field with none. A failure names the file, the line and the column.
 `json.parse` failures name the line where the value that does not fit
-starts.
+starts. It reads a JSON object into a record, by field name, or into a
+`Map[Str, V]`, keeping every key, so keys that are not valid field names,
+such as `topic.prefix`, can still be read.
 
 ## Runtime changes that come with M2
 

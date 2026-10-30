@@ -335,3 +335,40 @@ func TestPrograms(t *testing.T) {
 		})
 	}
 }
+
+// Every kind of type the checker accepts as a json.parse target must also
+// decode at run time. The checker once accepted Map[Str, Str] and the
+// runtime refused it; this test would have caught that.
+func TestJSONTargetsAgree(t *testing.T) {
+	decls := "type Inner {\n  n: Int\n}\n" +
+		"type All {\n  i: Int\n  f: Float\n  s: Str\n  b: Bool\n  d: Date\n  o: Str?\n  l: List[Int]\n  m: Map[Str, Inner]\n  r: Inner\n}\n"
+	cases := []struct{ target, json string }{
+		{"Int", `3`},
+		{"Float", `2.5`},
+		{"Str", `"x"`},
+		{"Bool", `true`},
+		{"Date", `"2026-10-30"`},
+		{"Str?", `null`},
+		{"List[Int]", `[1, 2]`},
+		{"List[Str?]", `["a", null]`},
+		{"Map[Str, Int]", `{"a": 1, "b.c": 2}`},
+		{"Map[Str, List[Str]]", `{"k": ["v"]}`},
+		{"Map[Str, Map[Str, Bool]]", `{"a": {"b": true}}`},
+		{"Inner", `{"n": 1, "extra": "ignored"}`},
+		{"List[Inner]", `[{"n": 1}]`},
+		{"Map[Str, Inner]", `{"x": {"n": 2}}`},
+		{"All", `{"i": 1, "f": 1, "s": "s", "b": false, "d": "2026-01-02", "l": [], "m": {"k": {"n": 3}}, "r": {"n": 4}}`},
+	}
+	for _, c := range cases {
+		t.Run(c.target, func(t *testing.T) {
+			src := decls + "fn load(text: Str) -> " + c.target + "! {\n  json.parse(text)\n}\n" +
+				"let v = load(`" + c.json + "`)!\nprint(\"ok\")\n"
+			path := filepath.Join(t.TempDir(), "p.fn")
+			os.WriteFile(path, []byte(src), 0o644)
+			var out bytes.Buffer
+			if code := Main([]string{"run", path}, &out, &out); code != 0 || out.String() != "ok\n" {
+				t.Errorf("the checker accepts json.parse into %s, but running it gave (exit %d):\n%s", c.target, code, out.String())
+			}
+		})
+	}
+}

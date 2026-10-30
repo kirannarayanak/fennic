@@ -603,7 +603,7 @@ func (c *checker) jsonParse(node ast.Node, want Type) Type {
 		return bad
 	}
 	if why := jsonable(target); why != "" {
-		c.errorf(node, "parse into a record, a List, a Str, an Int, a Float or a Bool", "`json.parse` cannot produce %s: %s", article(target), why)
+		c.errorf(node, "parse into a record, a List, a Map with Str keys, a Str, an Int, a Float, a Bool or a Date", "`json.parse` cannot produce %s: %s", article(target), why)
 		return bad
 	}
 	c.info.Targets[node] = target

@@ -246,7 +246,7 @@ func TestJSON(t *testing.T) {
 		{"from a pipe", cfg + "fn load(t: Str) -> Config! { t |> json.parse() }", ""},
 		{"lists of records", cfg + "fn load(t: Str) -> List[Config]! { json.parse(t)! }", ""},
 		{"no expected type", "let c = json.parse(\"\\{}\")!", "cannot tell what type `json.parse` should produce here | parse inside a function whose result type says it, like `fn load(text: Str) -> Config! { json.parse(text)! }`"},
-		{"sum types have no JSON form", shapes + "fn load(t: Str) -> Shape! { json.parse(t)! }", "`json.parse` cannot produce a Shape: sum types have no JSON form | parse into a record, a List, a Str, an Int, a Float or a Bool"},
+		{"sum types have no JSON form", shapes + "fn load(t: Str) -> Shape! { json.parse(t)! }", "`json.parse` cannot produce a Shape: sum types have no JSON form | parse into a record, a List, a Map with Str keys, a Str, an Int, a Float, a Bool or a Date"},
 	})
 }
 

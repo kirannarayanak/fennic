@@ -120,6 +120,27 @@ func (in *Interp) fromJSON(v Value, t types.Type, path string, lines *jsonLines,
 			out[i] = el
 		}
 		return &List{Elems: out}, 0, ""
+	case *types.Map:
+		// A JSON object read as a map: its keys, in order, and its values,
+		// each of the map's value type. The checker allows only Str keys.
+		r, ok := v.(*Record)
+		if !ok {
+			return wrong()
+		}
+		m := &Map{}
+		for j, key := range r.Type.Fields {
+			sub := key
+			if path != "" {
+				sub = path + "." + key
+			}
+			val, wl, why := in.fromJSON(r.Fields[j], t.Val, sub, lines, lines.of[jsonAt{r, j}])
+			if why != "" {
+				return nil, wl, why
+			}
+			m.Keys = append(m.Keys, key)
+			m.Vals = append(m.Vals, val)
+		}
+		return m, 0, ""
 	case *types.Named:
 		r, ok := v.(*Record)
 		if !ok {

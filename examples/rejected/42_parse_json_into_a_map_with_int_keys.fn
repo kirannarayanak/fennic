@@ -1,0 +1,5 @@
+fn load(text: Str) -> Map[Int, Str]! {
+  json.parse(text)
+}
+
+print(load(`{"1": "one"}`) else Map{})

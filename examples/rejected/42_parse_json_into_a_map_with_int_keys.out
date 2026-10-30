@@ -1,0 +1,6 @@
+error: `json.parse` cannot produce a Map[Int, Str]: only maps with Str keys have a JSON form
+ --> 42_parse_json_into_a_map_with_int_keys.fn:2:3
+  |
+2 |   json.parse(text)
+  |   ^^^^^^^^^^^^^^^^
+help: parse into a record, a List, a Map with Str keys, a Str, an Int, a Float, a Bool or a Date
