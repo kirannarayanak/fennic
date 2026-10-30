@@ -227,6 +227,8 @@ func TestErrors(t *testing.T) {
 			`put an expression inside, or write \{ for a literal brace`, 1, 3, `Str"a{}b"`},
 		{"single quote", `x = 'a`, "`'` does not start a string", `strings use double quotes: "like this"`, 1, 5,
 			`x = ILLEGAL(') a`},
+		{"single-quoted string", `let s = 'hi'`, "`'hi'` uses single quotes", `strings use double quotes: write "hi"`, 1, 9,
+			`let s = Str"hi"`},
 		{"hash comment", "# note", "`#` does not start a comment", "start a comment with //", 1, 1, "ILLEGAL(#) note"},
 		{"block comment", "/* x", "`/*` does not start a comment", "start each comment line with //", 1, 1, "ILLEGAL(/*) x"},
 		{"double ampersand", "a && b", "`&&` is not an operator in Fennic",

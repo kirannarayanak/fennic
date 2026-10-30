@@ -80,3 +80,33 @@ func TestUsage(t *testing.T) {
 		})
 	}
 }
+
+// A file with several mistakes reports each one once, in source order, and
+// runs nothing.
+func TestManyErrors(t *testing.T) {
+	var out bytes.Buffer
+	if code := Main([]string{"run", "testdata/many_errors.fn"}, &out, &out); code != 1 {
+		t.Errorf("exit %d, want 1", code)
+	}
+	var got []string
+	for _, line := range strings.Split(out.String(), "\n") {
+		if strings.HasPrefix(line, "error: ") {
+			got = append(got, strings.TrimPrefix(line, "error: "))
+		}
+		if _, loc, ok := strings.Cut(line, "--> testdata/many_errors.fn:"); ok {
+			got[len(got)-1] += " @ " + loc
+		}
+	}
+	want := []string{
+		"unexpected `,` between fields @ 2:12",
+		"parameter `who` needs a type @ 6:10",
+		"Fennic has no `return` @ 7:3",
+		"there is no `null` in Fennic @ 10:9",
+		"`'hi'` uses single quotes @ 11:9",
+		"`&&` is not an operator in Fennic @ 12:12",
+		"expected `)` to close the `(` on line 13, found the end of the line @ 13:19",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

@@ -472,6 +472,19 @@ func (l *lexer) lexPunct(start token.Pos, r rune) {
 		l.tok(token.Slash, start)
 	case '\'':
 		l.advance()
+		// A closed 'text' on one line is almost certainly a string with the
+		// wrong quotes: report it once and carry on as if it were "text".
+		if end := strings.IndexAny(l.src[l.off:], "'\n"); end >= 0 && l.src[l.off+end] == '\'' {
+			text := l.src[l.off : l.off+end]
+			for l.peek() != '\'' {
+				l.advance()
+			}
+			l.advance()
+			l.errorf(start, l.pos(), fmt.Sprintf(`strings use double quotes: write "%s"`, text),
+				"`'%s'` uses single quotes", text)
+			l.emit(token.Token{Kind: token.Str, Text: l.src[start.Offset:l.off], Value: text, Pos: start, End: l.pos()})
+			return
+		}
 		l.illegal(start, "`'` does not start a string", `strings use double quotes: "like this"`)
 	case '#':
 		l.advance()

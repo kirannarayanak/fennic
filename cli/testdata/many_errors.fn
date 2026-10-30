@@ -1,0 +1,14 @@
+type User {
+  name: Str,
+  age: Int
+}
+
+fn greet(who) -> Str {
+  return "Hello, {who}"
+}
+
+let a = null
+let b = 'hi'
+let ok = 1 && 2
+print(greet("Ada")
+let c = 3

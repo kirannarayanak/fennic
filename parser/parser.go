@@ -8,6 +8,7 @@ package parser
 
 import (
 	"fmt"
+	"sort"
 	"unicode"
 
 	"fennic/ast"
@@ -31,6 +32,9 @@ func Parse(src string) (*ast.File, []diag.Diagnostic) {
 	toks, lexDiags := lexer.Lex(src)
 	p := &parser{toks: toks, diags: lexDiags}
 	f := p.parseFile()
+	// Lexer and parser problems were found in two passes; report them in
+	// the order they appear in the file.
+	sort.SliceStable(p.diags, func(i, j int) bool { return p.diags[i].Pos.Offset < p.diags[j].Pos.Offset })
 	return f, p.diags
 }
 
@@ -98,6 +102,12 @@ func (p *parser) errorAt(from, to token.Pos, help, format string, args ...any) {
 // errorHere reports a problem with the current token.
 func (p *parser) errorHere(help, format string, args ...any) {
 	t := p.cur()
+	if t.Kind == token.Illegal {
+		// The lexer has reported this token. Skip the statement without a
+		// second message.
+		p.quiet = true
+		return
+	}
 	end := t.End
 	if t.Kind == token.Newline || t.Kind == token.EOF || p.onNewLine() {
 		// Point just past the previous token: that is where something is missing.

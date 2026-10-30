@@ -7,6 +7,9 @@ import (
 
 func (p *parser) parseBlock() *ast.Block {
 	open := p.next() // {
+	// Whatever went wrong before this brace, the statements inside are new
+	// statements and get their own diagnostics.
+	p.quiet = false
 	saved := p.noRecord
 	p.noRecord = false
 	defer func() { p.noRecord = saved }()
