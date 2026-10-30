@@ -1,0 +1,11 @@
+table_name,column_name,data_type
+orders,id,bigint
+orders,customer_id,bigint
+orders,total,"numeric(12,2)"
+orders,status,varchar(20)
+orders,created_at,timestamp
+customers,id,bigint
+customers,email,varchar(255)
+customers,signup_source,text
+refunds,id,int4
+refunds,order_id,bigint

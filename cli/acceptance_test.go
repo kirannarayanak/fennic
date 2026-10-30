@@ -306,3 +306,32 @@ func TestCSVFailures(t *testing.T) {
 		})
 	}
 }
+
+// TestPrograms runs the real programs of programs/ on their sample inputs.
+// They are not acceptance tests of the language, but they must keep working.
+func TestPrograms(t *testing.T) {
+	cases := []struct {
+		program string
+		args    []string
+	}{
+		{"reconcile/reconcile.fn", []string{"source.csv", "warehouse.csv"}},
+		{"connector-audit/audit.fn", []string{"connectors"}},
+		{"schema-drift/drift.fn", []string{"cluster_a.csv", "cluster_b.csv"}},
+	}
+	for _, c := range cases {
+		t.Run(c.program, func(t *testing.T) {
+			path := filepath.Join("../programs", c.program)
+			want, err := os.ReadFile(strings.TrimSuffix(path, ".fn") + ".out")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			if code := Main(append([]string{"run", path}, c.args...), &out, &out); code != 0 {
+				t.Errorf("exit status %d", code)
+			}
+			if out.String() != string(want) {
+				t.Errorf("output differs\n--- got\n%s--- want\n%s", out.String(), want)
+			}
+		})
+	}
+}

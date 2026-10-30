@@ -1,0 +1,8 @@
+{
+  "name": "s3-events-sink",
+  "config": {
+    "connector_class": "io.confluent.connect.s3.S3SinkConnector",
+    "topics": "prod.events.clicks",
+    "s3.bucket.name": "events-archive"
+  }
+}

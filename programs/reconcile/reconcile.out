@@ -1,0 +1,7 @@
+metric	source	warehouse	diff
+sessions	0.0	12.0	100.0%
+refunds	1203.0	1310.0	8.167938931297709%
+active_users	40211.0	38002.0	5.4935216731740075%
+revenue_gross	982341.5	951012.25	3.1892422339888924%
+only in source: ["churned_users"]
+only in warehouse: ["new_signups"]

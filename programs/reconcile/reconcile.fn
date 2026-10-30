@@ -1,0 +1,77 @@
+// Pipeline reconciliation: compare a metric export from the source layer
+// with the same export from the warehouse layer, and print the metrics
+// whose values differ by more than 3%, largest first, then the metrics
+// that exist on only one side.
+//
+//   fennic run reconcile.fn source.csv warehouse.csv
+//
+// Each CSV has a header row `metric,value`.
+
+type Row {
+  metric: Str
+  value: Float
+}
+
+type Mismatch {
+  metric: Str
+  source: Float
+  warehouse: Float
+  diff: Float // relative to the larger of the two
+}
+
+let threshold = 0.03
+
+fn abs(x: Float) -> Float {
+  if x < 0.0 { -x } else { x }
+}
+
+fn larger(a: Float, b: Float) -> Float {
+  if a > b { a } else { b }
+}
+
+// The relative difference, against the larger magnitude, so it is the same
+// whichever side is the reference and never divides by zero unless both are.
+fn relative_diff(a: Float, b: Float) -> Float {
+  let base = larger(abs(a), abs(b))
+  if base == 0.0 { 0.0 } else { abs(a - b) / base }
+}
+
+fn index(rows: List[Row]) -> Map[Str, Float] {
+  var m = Map{}
+  for r in rows {
+    m[r.metric] = r.value
+  }
+  m
+}
+
+fn main(args: List[Str]) {
+  let source = csv.read[Row](args[0] ?? "source.csv")!
+  let warehouse = csv.read[Row](args[1] ?? "warehouse.csv")!
+  let src = index(source)
+  let wh = index(warehouse)
+
+  var mismatches = []
+  for s in source {
+    if wh[s.metric] != none {
+      let w = wh[s.metric] ?? 0.0 // present: checked on the line above
+      let d = relative_diff(s.value, w)
+      if d > threshold {
+        mismatches.push(Mismatch { metric: s.metric, source: s.value, warehouse: w, diff: d })
+      }
+    }
+  }
+
+  print("metric\tsource\twarehouse\tdiff")
+  mismatches
+    |> sort_by(m -> -m.diff)
+    |> each(m -> print("{m.metric}\t{m.source}\t{m.warehouse}\t{m.diff * 100.0}%"))
+
+  let only_source = source |> filter(s -> wh[s.metric] == none) |> map(s -> s.metric)
+  let only_warehouse = warehouse |> filter(w -> src[w.metric] == none) |> map(w -> w.metric)
+  if only_source.len() > 0 {
+    print("only in source: {only_source}")
+  }
+  if only_warehouse.len() > 0 {
+    print("only in warehouse: {only_warehouse}")
+  }
+}

@@ -1,0 +1,7 @@
+connectors/Payments_CDC.json	name	`Payments_CDC` is not <system>-<entity>-<kind> in lowercase
+connectors/Payments_CDC.json	name	a source connector's name ends in -cdc
+connectors/Payments_CDC.json	snapshot	snapshot_mode when_needed is not one of initial, no_data
+connectors/broken.json	json	invalid JSON at 6:3: unexpected "}"
+connectors/users-cdc.json	file	should be named pg-users-cdc.json
+connectors/users-cdc.json	snapshot	snapshot_mode (not set) is not one of initial, no_data
+5 connectors, 6 violations

@@ -1,0 +1,9 @@
+{
+  "name": "Payments_CDC",
+  "config": {
+    "connector_class": "io.debezium.connector.mysql.MySqlConnector",
+    "topic_prefix": "payments",
+    "snapshot_mode": "when_needed",
+    "database.hostname": "payments-db.internal"
+  }
+}

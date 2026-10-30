@@ -1,0 +1,115 @@
+// Schema drift: compare two column dumps, from two clusters, and report the
+// columns added, removed and changed in type.
+//
+//   fennic run drift.fn cluster_a.csv cluster_b.csv
+//
+// Each CSV has a header row `table_name,column_name,data_type`, as exported
+// from information_schema.columns. Types are compared after normalising the
+// spellings Postgres treats as the same (int4 and integer, and so on).
+
+type Column {
+  table_name: Str
+  column_name: Str
+  data_type: Str
+}
+
+type Change =
+  | Added(col: Column)
+  | Removed(col: Column)
+  | Retyped(before: Column, after: Column)
+
+// Spellings of the same type. Only the base name is mapped; parameters such
+// as (255) are kept.
+let aliases = Map{
+  "int4": "integer",
+  "int": "integer",
+  "int8": "bigint",
+  "int2": "smallint",
+  "varchar": "character varying",
+  "timestamptz": "timestamp with time zone",
+  "bool": "boolean",
+  "float8": "double precision",
+}
+
+// The key a column is matched on. A Str because map keys cannot be pairs;
+// table and column names with a dot in them would collide.
+fn key(c: Column) -> Str {
+  "{c.table_name}.{c.column_name}"
+}
+
+fn joined(parts: List[Str], sep: Str) -> Str {
+  parts |> reduce((a, b) -> "{a}{sep}{b}") ?? ""
+}
+
+// varchar(255) -> character varying(255). The base name is the first word
+// and the rest are its parameters. words() splits on any non-letter, so a
+// two-word type such as "double precision" is read as base "double".
+fn normalise(t: Str) -> Str {
+  let parts = lower(t) |> words()
+  let base = parts[0] ?? ""
+  let canonical = aliases[base] ?? base
+  let params = parts |> filter(p -> p != base)
+  if params.len() == 0 { canonical } else { "{canonical}({joined(params, ",")})" }
+}
+
+fn index(cols: List[Column]) -> Map[Str, Column] {
+  var m = Map{}
+  for c in cols {
+    m[key(c)] = c
+  }
+  m
+}
+
+fn describe(ch: Change) -> Str {
+  match ch {
+    Added(c) -> "+ {key(c)}\t{c.data_type}"
+    Removed(c) -> "- {key(c)}\t{c.data_type}"
+    Retyped(before, after) -> "~ {key(after)}\t{before.data_type} -> {after.data_type}"
+  }
+}
+
+fn table_of(ch: Change) -> Str {
+  match ch {
+    Added(c) -> c.table_name
+    Removed(c) -> c.table_name
+    Retyped(_, after) -> after.table_name
+  }
+}
+
+fn main(args: List[Str]) {
+  let a = csv.read[Column](args[0] ?? "cluster_a.csv")!
+  let b = csv.read[Column](args[1] ?? "cluster_b.csv")!
+  let in_a = index(a)
+  let in_b = index(b)
+
+  var changes = []
+  for c in b {
+    if in_a[key(c)] == none {
+      changes.push(Added(c))
+    }
+  }
+  for c in a {
+    let other = in_b[key(c)]
+    if other == none {
+      changes.push(Removed(c))
+    } else {
+      let after = other ?? c // present: checked above
+      if normalise(c.data_type) != normalise(after.data_type) {
+        changes.push(Retyped(c, after))
+      }
+    }
+  }
+
+  // Grouped by table, tables in name order. A map cannot be walked in key
+  // order, so the changes are sorted and a header printed when the table
+  // changes.
+  var table = ""
+  for ch in changes |> sort_by(ch -> table_of(ch)) {
+    if table_of(ch) != table {
+      table = table_of(ch)
+      print(table)
+    }
+    print("  {describe(ch)}")
+  }
+  print("{changes.len()} changes")
+}
