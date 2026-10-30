@@ -651,7 +651,7 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 func (s *sig) isMain() bool { return s.name == "main" && s.decl.Recv == nil }
 
 // checkMain checks the signature of `fn main`: no arguments or
-// `args: List[Str]`, and no result.
+// `args: List[Str]`, and no result or an Int, the exit status.
 func (c *checker) checkMain(s *sig) {
 	d := s.decl
 	if len(s.params) > 1 || (len(s.params) == 1 && !unify(s.params[0].Type, &List{Str})) {
@@ -661,8 +661,9 @@ func (c *checker) checkMain(s *sig) {
 	if len(d.TypeParams) > 0 {
 		c.errorf(d.Name, "remove the type parameters", "`main` cannot be generic")
 	}
-	if d.Result != nil {
-		c.errorf(d.Result, "remove the result type; use `!` or `fail` inside main to stop with a failure", "`main` returns nothing")
+	if d.Result != nil && !unify(s.result, Int) {
+		c.errorf(d.Result, "write `-> Int` to give the exit status, or remove the result type to exit with 0",
+			"`main` returns nothing or an Int, the exit status, but this is %s", article(s.result))
 	}
 }
 

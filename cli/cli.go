@@ -62,10 +62,12 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	if args[0] == "run" && in.HasMain() {
-		if err := in.Main(args[2:]); err != nil {
+		status, err := in.Main(args[2:])
+		if err != nil {
 			render(stderr, err.(*interp.RuntimeError).Diag)
 			return 1
 		}
+		return status
 	}
 	if args[0] == "test" {
 		report, failed := interp.Report(in.RunTests(), func(d diag.Diagnostic) string {

@@ -1,0 +1,10 @@
+// expect: exit 3
+// main can return an Int: the exit status, so a script or CI can tell
+// what happened. 0 means success. Without `-> Int`, main exits with 0.
+fn main() -> Int {
+  let failures = ["orders", "refunds", "sessions"]
+  for f in failures {
+    print("mismatch: {f}")
+  }
+  failures.len()
+}

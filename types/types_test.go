@@ -375,7 +375,10 @@ func TestMainSignature(t *testing.T) {
 		{"no arguments", "fn main() { }", ""},
 		{"command-line arguments", "fn main(args: List[Str]) {\n  print(args[0] ?? \".\")\n}", ""},
 		{"wrong arguments", "fn main(n: Int) { }", "`main` takes no arguments, or the command-line arguments as a List[Str] | write `fn main()`, or `fn main(args: List[Str])` to receive the command-line arguments"},
-		{"a result", "fn main() -> Int { 0 }", "`main` returns nothing | remove the result type; use `!` or `fail` inside main to stop with a failure"},
+		{"an exit status", "fn main() -> Int { 0 }", ""},
+		{"an exit status with arguments", "fn main(args: List[Str]) -> Int { args.len() }", ""},
+		{"a result that is not an Int", "fn main() -> Str { \"done\" }", "`main` returns nothing or an Int, the exit status, but this is a Str | write `-> Int` to give the exit status, or remove the result type to exit with 0"},
+		{"failing in a main with a status", "fn main() -> Int {\n  let t = fs.read(\"x\")!\n  0\n}", ""},
 	})
 }
 

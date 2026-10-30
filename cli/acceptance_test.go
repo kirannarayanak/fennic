@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -36,7 +37,7 @@ func TestAcceptance(t *testing.T) {
 
 // runExpecting runs one acceptance program and compares its output with
 // the .out file beside it. Lines starting `// expect:` set how it runs:
-// `test` runs its test blocks, `exit 1` expects a failure, `args a b` passes
+// `test` runs its test blocks, `exit N` expects that exit status, `args a b` passes
 // command-line arguments, and `env NAME=value` sets an environment variable.
 func runExpecting(t *testing.T, f string) {
 	t.Helper()
@@ -58,8 +59,12 @@ func runExpecting(t *testing.T, f string) {
 		switch {
 		case directive == "test":
 			mode = "test"
-		case directive == "exit 1":
-			wantCode = 1
+		case strings.HasPrefix(directive, "exit "):
+			n, err := strconv.Atoi(strings.TrimPrefix(directive, "exit "))
+			if err != nil {
+				t.Fatalf("bad directive %q", directive)
+			}
+			wantCode = n
 		case strings.HasPrefix(directive, "args "):
 			extra = strings.Fields(strings.TrimPrefix(directive, "args "))
 		case strings.HasPrefix(directive, "env "):
@@ -390,5 +395,32 @@ func TestPathsAreRelativeToTheCaller(t *testing.T) {
 	var out bytes.Buffer
 	if code := Main([]string{"run", "tools/show.fn", "data.txt"}, &out, &out); code != 0 || out.String() != "from the caller's directory\n" {
 		t.Errorf("exit %d, got %q", code, out.String())
+	}
+}
+
+// main's Int result is the exit status.
+func TestExitStatus(t *testing.T) {
+	cases := []struct {
+		name, src string
+		code      int
+		out       string
+	}{
+		{"no result exits 0", "fn main() { print(\"hi\") }", 0, "hi\n"},
+		{"returned status", "fn main() -> Int { 7 }", 7, ""},
+		{"from the arguments", "fn main(args: List[Str]) -> Int { args.len() }", 0, ""},
+		{"a failure still exits 1", "fn main() -> Int {\n  fail \"stop\"\n}", 1, "error: stop"},
+		{"out of range", "fn main() -> Int { 300 }", 1, "error: `main` returned 300, which is not an exit status"},
+		{"negative", "fn main() -> Int { -1 }", 1, "error: `main` returned -1, which is not an exit status"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "p.fn")
+			os.WriteFile(path, []byte(c.src), 0o644)
+			var out bytes.Buffer
+			code := Main([]string{"run", path}, &out, &out)
+			if code != c.code || !strings.HasPrefix(out.String(), c.out) {
+				t.Errorf("exit %d, want %d; output:\n%s", code, c.code, out.String())
+			}
+		})
 	}
 }

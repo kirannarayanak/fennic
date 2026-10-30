@@ -8,7 +8,7 @@ M1 is done when every program here runs and its output matches the file beside i
 - The harness runs from this directory: `fennic run NN_name.fn`.
 - `.out` holds stdout and stderr together, in the order they were written. Both streams go to the same pipe, so the order is deterministic.
 - Directives on line 1, used by the harness only:
-  - `// expect: exit 1` means the program must exit with status 1. Otherwise it must exit with 0.
+  - `// expect: exit N` means the program must exit with status N. Otherwise it must exit with 0.
   - `// expect: test` means run `fennic test NN_name.fn` instead of `fennic run`.
 - File paths resolve against the working directory, so the harness runs each program from inside `examples/`. Fixtures live in `data/`.
 
@@ -47,6 +47,7 @@ M1 is done when every program here runs and its output matches the file beside i
 | `fs.list`, `Date`, `flatten`, `unique`, `json.encode` | 31 |
 | `to_float`, `to_int` | 32 |
 | `split`, `join`, `contains`, `starts_with`, `trim`, `pad_start`, `pad_end` | 33 |
+| exit status from `fn main() -> Int` | 34 |
 
 Line-1 directives may also be `// expect: args a b` (command-line
 arguments) or `// expect: env NAME=value`. `examples/m0/` holds the

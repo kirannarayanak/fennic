@@ -56,7 +56,8 @@ fennic test hello.fn          # run the program, then its test blocks
 ```
 
 `fennic run` exits with status 0 on success and 1 if the program has an
-error or stops on an unhandled failure. `fennic test` exits with 1 if any
+error or stops on an unhandled failure. A program sets its own status by
+declaring `fn main() -> Int` and returning it. `fennic test` exits with 1 if any
 test fails.
 
 ### A first program
@@ -153,7 +154,7 @@ help: handle the failure first: `notes else ""` gives a fallback, and `notes!` p
 | Loops | `for x in xs { ... }`, `for n in 1..10 { ... }` (both ends included), `total += n` |
 | Patterns | `match` takes apart variants, tuples `(0, _)`, lists `[x, y]` and literals, and must cover every case |
 | Maps | `Map{"apples": 3}`; `m[k]` gives an optional, `m[k] = v` sets an entry of a `var` |
-| Entry point | `fn main()` or `fn main(args: List[Str])` runs after the top level |
+| Entry point | `fn main()` or `fn main(args: List[Str])` runs after the top level; `-> Int` makes its result the exit status |
 | Pipelines | `xs \|> filter(x -> x > 0) \|> take(10)` |
 | Interfaces | satisfied structurally; methods are `fn Type.name(self, ...)` |
 | Concurrency | `together { xs \|> map_par(f) }!` runs tasks in a scope that cancels on failure; `spawn fn() { ... }` starts one; `Chan[T](n)` carries values between them |

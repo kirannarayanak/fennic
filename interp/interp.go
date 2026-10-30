@@ -174,7 +174,9 @@ func (in *Interp) HasMain() bool {
 
 // Main runs `fn main`, after Run has run the top level. args are the
 // command-line arguments after the file name, passed if main takes them.
-func (in *Interp) Main(args []string) (err error) {
+// The result is the exit status: what main returns, or 0 if it returns
+// nothing.
+func (in *Interp) Main(args []string) (status int, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = in.toError(r)
@@ -190,8 +192,26 @@ func (in *Interp) Main(args []string) (err error) {
 		}
 		env.Define(d.Params[0].Name.Name, list, false)
 	}
-	in.evalBlock(d.Body, env, &task{ctx: context.Background()})
-	return nil
+	v := in.evalBlock(d.Body, env, &task{ctx: context.Background()})
+	if d.Result == nil {
+		return 0, nil
+	}
+	n := v.(int64)
+	if n < 0 || n > 255 {
+		at := ast.Node(d.Name)
+		if last := lastStmt(d.Body); last != nil {
+			at = last
+		}
+		in.fail(at, "return an exit status from 0 to 255; 0 means success", "`main` returned %d, which is not an exit status", n)
+	}
+	return int(n), nil
+}
+
+func lastStmt(b *ast.Block) ast.Node {
+	if len(b.Stmts) == 0 {
+		return nil
+	}
+	return b.Stmts[len(b.Stmts)-1]
 }
 
 // toError turns a panic that escaped the program into the error to report.

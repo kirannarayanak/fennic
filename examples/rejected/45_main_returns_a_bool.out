@@ -1,0 +1,6 @@
+error: `main` returns nothing or an Int, the exit status, but this is a Bool
+ --> 45_main_returns_a_bool.fn:1:14
+  |
+1 | fn main() -> Bool {
+  |              ^^^^
+help: write `-> Int` to give the exit status, or remove the result type to exit with 0

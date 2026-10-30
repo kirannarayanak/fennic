@@ -165,7 +165,7 @@ The syntax reference left these open. They were approved along with `examples/`;
 - `;` separates statements on one line inside a block.
 - Interpolated values display as source syntax (`Point { x: 3, y: 4 }`, `["a"]`); a top-level Str displays unquoted. Floats print shortest round-trip form and always keep a `.0`.
 - Built-ins beyond the reference: `len`, `first`, `last` (both return `T?`), `sum`, `map`, `each`.
-- `!` at top level stops the program with exit 1 and a diagnostic.
+- `!` at top level stops the program with exit 1 and a diagnostic. `fn main() -> Int` sets the exit status (M3 round two).
 - `json.parse` returns an untyped record in M1. How M2 names the target type is open.
 - `map_par` keeps input order and runs only inside `together`. The first task to fail cancels the others, and a failure is reported, never a cancellation. **Which failure is reported when several tasks fail is explicitly unspecified**: it depends on timing, and no program or test may depend on it. (Approved as "lowest index"; that cannot be guaranteed once cancelled tasks never run.)
 - A function with no `->` result type returns nothing, whatever its last expression.

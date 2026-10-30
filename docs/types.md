@@ -151,8 +151,9 @@ the old one does not see the change. Maps keep their keys in the order they
 were first set, and two maps are equal when they hold the same entries.
 
 **Entry point.** `fn main()` or `fn main(args: List[Str])` runs after the
-top-level statements, and may not have a result. `!` and `fail` in `main`
-stop the program, as at the top level.
+top-level statements. It returns nothing, and the program exits with 0, or
+`-> Int`, and the program exits with that status, from 0 to 255. `!` and
+`fail` in `main` stop the program with status 1, as at the top level.
 
 ## Built-ins
 
