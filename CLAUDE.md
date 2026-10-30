@@ -84,7 +84,7 @@ interface Sink { fn write(self, line: Str) }
 fn Console.write(self, line: Str) { print(line) }   // structural, no impl block
 
 let pages = together {              // scopes its spawns, returns its last expression
-  urls |> map_par(u -> http.get(u)!)
+  paths |> map_par(p -> fs.read(p)!)
 }!
 
 test "greet uses the name" {

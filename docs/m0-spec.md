@@ -69,7 +69,7 @@ interface Named {
 
 // concurrency: looks blocking, is not
 let pages = together {
-  urls |> map_par(u -> http.get(u)!)
+  paths |> map_par(p -> fs.read(p)!)
 }
 
 // tests live next to the code and need no framework
@@ -327,9 +327,9 @@ fn main() {
 ```
 fn main() {
   let bodies = together {
-    urls |> map_par(u -> http.get(u)!)
+    paths |> map_par(p -> fs.read(p)!)
   }!
-  print("fetched {bodies.len()} pages")
+  print("read {bodies.len()} pages")
 }
 ```
 
@@ -344,12 +344,12 @@ fn main() {
   together {
     for _ in 1..8 {
       spawn fn() {
-        for url in jobs {
-          save(http.get(url) else "")
+        for path in jobs {
+          save(fs.read(path) else "")
         }
       }
     }
-    for url in urls { jobs.send(url) }
+    for path in paths { jobs.send(path) }
     jobs.close()
   }
 }
@@ -373,11 +373,11 @@ fn main(args: List[Str]) {
   let dir = args[0] ?? "."
 
   let rows = together {
-    fs.list(dir, "*.csv") |> map_par(f -> csv.read[Row](f)!)
+    fs.list(dir, "*.csv")! |> map_par(f -> csv.read[Row](f)!)
   }! |> flatten()
 
   let summary = rows
-    |> filter(r -> r.amount > 0)
+    |> filter(r -> r.amount > 0.0)
     |> group_by(r -> r.region)
     |> map_values(rs -> Summary {
          total: rs |> sum_by(r -> r.amount),
@@ -418,9 +418,10 @@ above already include the changes marked "applied".
    programs 10, 11, 15 and 19.
 2. **`.push`** changes a `var` list in place. On a `let` list it is a
    compile error.
-3. **`http.get` is cut.** Programs 18, 19 and 20 are rewritten against
-   local operations when the concurrency work lands, so they still show
-   scoping and cancellation without a network. Not yet applied.
+3. **`http.get` is cut.** Applied: the tour and programs 18 and 19 read
+   local files with `fs.read` instead of fetching URLs, so they still show
+   scoping, cancellation and a worker pool without a network. Program 20
+   never used `http.get`.
 4. **`and` and `not`** come in with decision 1, although no program uses
    them.
 5. **Type arguments may be explicit or come from context.**
@@ -443,3 +444,9 @@ above already include the changes marked "applied".
 
 Amendment 1 is also applied above: program 16's `debug` field has no
 default.
+12. **`fs.list` can fail**, like `fs.read`: a missing directory is a
+    failure, not an empty list. Applied: program 20 writes
+    `fs.list(dir, "*.csv")!`.
+13. **Program 20 compares Floats with a Float.** It wrote
+    `r.amount > 0`, comparing a Float with an Int, which the type checker
+    refuses because implicit conversion is a non-goal. Applied: `0.0`.
