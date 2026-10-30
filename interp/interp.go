@@ -9,6 +9,7 @@ import (
 
 	"github.com/kirannarayanak/fennic/ast"
 	"github.com/kirannarayanak/fennic/diag"
+	"github.com/kirannarayanak/fennic/types"
 )
 
 // Interp holds one loaded program.
@@ -21,6 +22,8 @@ type Interp struct {
 	records  map[string]*RecordType
 	variants map[string]*VariantType
 	methods  map[string]map[string]*Func // type name -> method name -> method
+
+	jsonTargets map[ast.Node]types.Type // what each json.parse call builds
 
 	outMu sync.Mutex
 	out   io.Writer
@@ -111,6 +114,10 @@ func New(file *ast.File, src, dir string, out, errw io.Writer) *Interp {
 	}
 	return in
 }
+
+// SetJSONTargets tells json.parse what each call should build, as decided
+// by the type checker. Without it json.parse builds untyped records.
+func (in *Interp) SetJSONTargets(t map[ast.Node]types.Type) { in.jsonTargets = t }
 
 func (in *Interp) constructor(vt *VariantType) *Builtin {
 	return &Builtin{Name: vt.Name, Fn: func(in *Interp, call *callSite, args []Value) Value {

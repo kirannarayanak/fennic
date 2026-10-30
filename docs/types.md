@@ -41,8 +41,9 @@ three-programs rule.
   type, and no `->` means the function returns nothing.
 - Inside bodies everything is inferred. `let` and `var` take the type of
   their value. A lambda's parameter types come from where it is used.
-- An empty list `[]` and `none` take their element type from use. If
-  nothing ever decides it, that is an error naming the binding.
+- An empty list `[]` and `none` take their element type from use. A list
+  literal containing `none` is a list of optionals: `[1, none]` is a
+  `List[Int?]`.
 - Expected types flow inward: a function's result type is the expected type
   of its last expression, a parameter's type is the expected type of its
   argument. This is how `json.parse` knows what to build.

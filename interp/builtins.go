@@ -40,13 +40,18 @@ func (in *Interp) prelude() *Env {
 		out := make([]Value, len(l.Elems))
 		for i, e := range l.Elems {
 			out[i] = in.call(args[1], []Value{e}, c)
+			if f, failed := out[i].(*Failure); failed {
+				return f
+			}
 		}
 		return &List{Elems: out}
 	})
 	def("each", func(in *Interp, c *callSite, args []Value) Value {
 		l := in.listArg(c, "each", args, 2)
 		for _, e := range l.Elems {
-			in.call(args[1], []Value{e}, c)
+			if f, failed := in.call(args[1], []Value{e}, c).(*Failure); failed {
+				return f
+			}
 		}
 		return Unit
 	})
@@ -54,7 +59,11 @@ func (in *Interp) prelude() *Env {
 		l := in.listArg(c, "filter", args, 2)
 		var out []Value
 		for _, e := range l.Elems {
-			keep, ok := in.call(args[1], []Value{e}, c).(bool)
+			r := in.call(args[1], []Value{e}, c)
+			if f, failed := r.(*Failure); failed {
+				return f
+			}
+			keep, ok := r.(bool)
 			if !ok {
 				in.fail(c.node, "give filter a function that returns a Bool, like `x -> x > 0`", "filter's function must return a Bool")
 			}
@@ -172,6 +181,9 @@ func builtinSortBy(in *Interp, c *callSite, args []Value) Value {
 	keys := make([]Value, len(l.Elems))
 	for i, e := range l.Elems {
 		keys[i] = in.call(args[1], []Value{e}, c)
+		if f, failed := keys[i].(*Failure); failed {
+			return f
+		}
 	}
 	idx := make([]int, len(l.Elems))
 	for i := range idx {

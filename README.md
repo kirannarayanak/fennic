@@ -16,9 +16,9 @@ let adults = users
 let cfg = load("app.json") or Config.default()
 ```
 
-**Status: M1.** Fennic currently runs as a tree-walking interpreter with no
-type checker; types are written and parsed but not yet checked. The type
-checker is the next milestone. Expect the language to change.
+**Status: M2.** Fennic is a tree-walking interpreter with a type checker
+that runs before anything else: a program with a type error does not run.
+Expect the language to change.
 
 ## Install
 
@@ -124,8 +124,17 @@ error: cannot assign to `limit` because it was declared with `let`
 help: change line 1 to `var limit = 10` if `limit` needs to change
 ```
 
-A file with several syntax mistakes reports all of them, in order, before
-anything runs.
+A file with several mistakes reports all of them, in order, before
+anything runs. Type errors are caught the same way:
+
+```
+error: `print` needs a Str, but this is a Str!, which might be a failure
+ --> notes.fn:2:7
+  |
+2 | print(notes)
+  |       ^^^^^
+help: handle the failure first: `notes or ""` gives a fallback, and `notes!` passes it on
+```
 
 ## The language in brief
 
@@ -157,17 +166,20 @@ Built-in functions: `print`, `len`, `first`, `last`, `sum`, `map`, `each`,
 go test ./...
 ```
 
-This runs the lexer, parser and interpreter tests, and runs all twenty
-examples against their expected output.
+This runs the lexer, parser, type checker and interpreter tests, runs the
+twenty programs in `examples/` against their expected output, and checks
+that the twenty in `examples/rejected/` are refused with exactly the error
+beside each.
 
 | Directory | Contents |
 | --- | --- |
 | `token`, `lexer` | source text to tokens, with line and column on each |
 | `ast`, `parser` | the syntax tree, and a parser that recovers from errors |
+| `types` | the type checker; the rules are in [`docs/types.md`](docs/types.md) |
 | `interp` | the tree-walking interpreter, built-ins and test runner |
 | `diag` | error messages and how they are printed |
 | `cli`, `cmd/fennic` | the `fennic` command |
-| `examples` | the acceptance suite |
+| `examples` | the acceptance suite, with programs that must be refused in `examples/rejected` |
 
 [`CLAUDE.md`](CLAUDE.md) records the design rules and the decisions made so
 far.

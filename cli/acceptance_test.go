@@ -110,3 +110,83 @@ func TestManyErrors(t *testing.T) {
 		t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+// TestRejected is the M2 definition of done, with TestAcceptance: every
+// program in examples/rejected/ is refused with exactly the error beside it,
+// and nothing runs.
+func TestRejected(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir("../examples/rejected"); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(wd)
+
+	files, _ := filepath.Glob("*.fn")
+	if len(files) != 20 {
+		t.Fatalf("found %d rejected programs, want 20", len(files))
+	}
+	for _, f := range files {
+		t.Run(f, func(t *testing.T) {
+			want, err := os.ReadFile(strings.TrimSuffix(f, ".fn") + ".out")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			if code := Main([]string{"run", f}, &out, &out); code != 1 {
+				t.Errorf("exit status %d, want 1", code)
+			}
+			if got := out.String(); got != string(want) {
+				t.Errorf("output differs\n--- got\n%s--- want\n%s", got, want)
+			}
+		})
+	}
+}
+
+// Behaviour that changed in M2 at run time.
+func TestTypedRuntime(t *testing.T) {
+	config := "type Config {\n  name: Str\n  port: Int\n  tags: List[Str]\n  owner: Str?\n}\n" +
+		"fn parse(text: Str) -> Config! { json.parse(text)! }\n" +
+		"fn report(text: Str) { let c = parse(text) or e -> { print(\"{e}\"); Config { name: \"\", port: 0, tags: [], owner: none } } }\n"
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"json builds the declared record", config +
+			`let c = parse("\{\"name\": \"a\", \"port\": 80, \"tags\": [\"x\"]}")!` + "\n" +
+			`print("{c}")` + "\n" +
+			`print("{c == Config { name: "a", port: 80, tags: ["x"], owner: none }}")`,
+			"Config { name: \"a\", port: 80, tags: [\"x\"], owner: none }\ntrue\n"},
+		{"json missing field fails", config +
+			`report("\{\"name\": \"a\"}")`,
+			"the JSON does not fit Config: missing field `port`\n"},
+		{"json wrong kind fails", config +
+			`report("\{\"name\": \"a\", \"port\": \"80\", \"tags\": []}")`,
+			"the JSON does not fit Config: expected an Int at `port`, but the JSON has a string\n"},
+		{"json nested path", config +
+			`report("\{\"name\": \"a\", \"port\": 1, \"tags\": [1]}")`,
+			"the JSON does not fit Config: expected a Str at `tags[0]`, but the JSON has a number\n"},
+		{"map stops at the first failure",
+			`let xs = ["missing.txt", "also-missing.txt"] |> map(f -> fs.read(f)!) or e -> ["{e}"]` + "\n" + `print("{xs}")`,
+			"[\"cannot read \\\"missing.txt\\\": file not found\"]\n"},
+		{"each stops at the first failure",
+			`["missing.txt", "x"] |> each(f -> print(fs.read(f)!)) or e -> print("stopped: {e}")`,
+			"stopped: cannot read \"missing.txt\": file not found\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "prog.fn")
+			if err := os.WriteFile(path, []byte(c.src), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			code := Main([]string{"run", path}, &out, &out)
+			if code != 0 || out.String() != c.want {
+				t.Errorf("exit %d\ngot:\n%s\nwant:\n%s", code, out.String(), c.want)
+			}
+		})
+	}
+}

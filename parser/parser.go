@@ -368,6 +368,15 @@ func (p *parser) parseType() ast.TypeExpr {
 		switch {
 		case p.accept(token.Question):
 			t = &ast.OptionalType{Span: p.span(start), Elem: t}
+		case p.at(token.QQ):
+			// `T??` lexes as the `??` operator; read it as two `?` and let
+			// the type checker explain why that is wrong.
+			qq := p.next()
+			mid := qq.Pos
+			mid.Col++
+			mid.Offset++
+			inner := &ast.OptionalType{Span: ast.Span{From: start, To: mid}, Elem: t}
+			t = &ast.OptionalType{Span: p.span(start), Elem: inner}
 		case p.accept(token.Bang):
 			t = &ast.FailableType{Span: p.span(start), Elem: t}
 		default:

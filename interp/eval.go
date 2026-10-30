@@ -7,6 +7,7 @@ import (
 
 	"github.com/kirannarayanak/fennic/ast"
 	"github.com/kirannarayanak/fennic/token"
+	"github.com/kirannarayanak/fennic/types"
 )
 
 func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
@@ -468,9 +469,5 @@ func article(kind string) string {
 	if strings.HasPrefix(kind, "type ") || strings.HasPrefix(kind, "module ") {
 		return kind
 	}
-	switch kind[0] {
-	case 'A', 'E', 'I', 'O', 'U', 'a', 'e', 'i', 'o', 'u':
-		return "an " + kind
-	}
-	return "a " + kind
+	return types.Article(kind)
 }

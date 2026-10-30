@@ -13,6 +13,7 @@ import (
 	"github.com/kirannarayanak/fennic/diag"
 	"github.com/kirannarayanak/fennic/interp"
 	"github.com/kirannarayanak/fennic/parser"
+	"github.com/kirannarayanak/fennic/types"
 )
 
 const usage = `usage:
@@ -43,6 +44,10 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	if len(diags) == 0 {
 		diags = interp.Check(file, src)
 	}
+	var info *types.Info
+	if len(diags) == 0 {
+		diags, info = types.Check(file, src)
+	}
 	if len(diags) > 0 {
 		for _, d := range diags {
 			render(stderr, d)
@@ -51,6 +56,7 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	}
 
 	in := interp.New(file, src, filepath.Dir(path), stdout, stderr)
+	in.SetJSONTargets(info.JSONTargets)
 	if err := in.Run(); err != nil {
 		render(stderr, err.(*interp.RuntimeError).Diag)
 		return 1

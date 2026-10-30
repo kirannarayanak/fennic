@@ -7,6 +7,8 @@ import (
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/kirannarayanak/fennic/types"
 )
 
 // builtinParseJSON decodes a JSON document. In M1 an object becomes an
@@ -17,13 +19,123 @@ func builtinParseJSON(in *Interp, c *callSite, args []Value) Value {
 	dec := json.NewDecoder(strings.NewReader(text))
 	dec.UseNumber()
 	v, err := decodeJSON(dec)
-	if err == nil {
-		if _, extra := dec.Token(); extra != io.EOF {
-			return &Failure{Msg: "invalid JSON: unexpected text after the value"}
-		}
+	if err != nil {
+		return &Failure{Msg: jsonError(text, dec, err)}
+	}
+	if _, extra := dec.Token(); extra != io.EOF {
+		return &Failure{Msg: "invalid JSON: unexpected text after the value"}
+	}
+	target, typed := in.jsonTargets[c.node]
+	if !typed {
 		return v
 	}
-	return &Failure{Msg: jsonError(text, dec, err)}
+	out, why := in.fromJSON(v, target, "")
+	if why != "" {
+		return &Failure{Msg: fmt.Sprintf("the JSON does not fit %s: %s", types.String(target), why)}
+	}
+	return out
+}
+
+// fromJSON turns a decoded JSON value into the type the checker chose.
+// path names the field being converted, for messages.
+func (in *Interp) fromJSON(v Value, t types.Type, path string) (Value, string) {
+	at := ""
+	if path != "" {
+		at = " at `" + path + "`"
+	}
+	wrong := func() (Value, string) {
+		return nil, fmt.Sprintf("expected %s%s, but the JSON has %s", types.Article(types.String(t)), at, jsonKind(v))
+	}
+	switch t := t.(type) {
+	case *types.Opt:
+		if v == None {
+			return None, ""
+		}
+		return in.fromJSON(v, t.Elem, path)
+	case *types.Basic:
+		switch t {
+		case types.Int:
+			if n, ok := v.(int64); ok {
+				return n, ""
+			}
+		case types.Float:
+			// JSON writes 3 and 3.0 alike, so a whole number fits a Float.
+			switch n := v.(type) {
+			case float64:
+				return n, ""
+			case int64:
+				return float64(n), ""
+			}
+		case types.Str:
+			if s, ok := v.(string); ok {
+				return s, ""
+			}
+		case types.Bool:
+			if b, ok := v.(bool); ok {
+				return b, ""
+			}
+		}
+		return wrong()
+	case *types.List:
+		l, ok := v.(*List)
+		if !ok {
+			return wrong()
+		}
+		out := make([]Value, len(l.Elems))
+		for i, e := range l.Elems {
+			var why string
+			if out[i], why = in.fromJSON(e, t.Elem, fmt.Sprintf("%s[%d]", path, i)); why != "" {
+				return nil, why
+			}
+		}
+		return &List{Elems: out}, ""
+	case *types.Named:
+		r, ok := v.(*Record)
+		if !ok {
+			return wrong()
+		}
+		rt := in.records[t.Name]
+		fields := make([]Value, len(t.Fields))
+		for i, f := range t.Fields {
+			sub := f.Name
+			if path != "" {
+				sub = path + "." + f.Name
+			}
+			j := r.Type.index(f.Name)
+			if j < 0 {
+				if _, opt := f.Type.(*types.Opt); opt {
+					fields[i] = None
+					continue
+				}
+				return nil, fmt.Sprintf("missing field `%s`", sub)
+			}
+			var why string
+			if fields[i], why = in.fromJSON(r.Fields[j], f.Type, sub); why != "" {
+				return nil, why
+			}
+		}
+		return &Record{Type: rt, Fields: fields}, ""
+	}
+	return wrong()
+}
+
+// jsonKind names a decoded JSON value the way JSON calls it.
+func jsonKind(v Value) string {
+	switch v.(type) {
+	case int64, float64:
+		return "a number"
+	case string:
+		return "a string"
+	case bool:
+		return "true or false"
+	case *List:
+		return "an array"
+	case *Record:
+		return "an object"
+	case noneValue:
+		return "null"
+	}
+	return "something else"
 }
 
 func decodeJSON(dec *json.Decoder) (Value, error) {
