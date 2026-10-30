@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"fennic/ast"
-	"fennic/token"
+	"github.com/kirannarayanak/fennic/ast"
+	"github.com/kirannarayanak/fennic/token"
 )
 
 // Precedence, loosest first:

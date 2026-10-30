@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"fennic/ast"
-	"fennic/token"
+	"github.com/kirannarayanak/fennic/ast"
+	"github.com/kirannarayanak/fennic/token"
 )
 
 func (p *parser) parseBlock() *ast.Block {

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"fennic/diag"
-	"fennic/parser"
+	"github.com/kirannarayanak/fennic/diag"
+	"github.com/kirannarayanak/fennic/parser"
 )
 
 // run executes src and returns what it printed, plus the error message and

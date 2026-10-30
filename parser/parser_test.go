@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"fennic/ast"
+	"github.com/kirannarayanak/fennic/ast"
 )
 
 type parseCase struct {

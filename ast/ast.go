@@ -3,7 +3,7 @@
 // span it came from.
 package ast
 
-import "fennic/token"
+import "github.com/kirannarayanak/fennic/token"
 
 type Node interface {
 	Pos() token.Pos // first character

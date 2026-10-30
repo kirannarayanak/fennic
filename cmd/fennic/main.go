@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"fennic/cli"
+	"github.com/kirannarayanak/fennic/cli"
 )
 
 func main() {

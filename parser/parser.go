@@ -11,10 +11,10 @@ import (
 	"sort"
 	"unicode"
 
-	"fennic/ast"
-	"fennic/diag"
-	"fennic/lexer"
-	"fennic/token"
+	"github.com/kirannarayanak/fennic/ast"
+	"github.com/kirannarayanak/fennic/diag"
+	"github.com/kirannarayanak/fennic/lexer"
+	"github.com/kirannarayanak/fennic/token"
 )
 
 type parser struct {

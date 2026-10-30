@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"fennic/token"
+	"github.com/kirannarayanak/fennic/token"
 )
 
 // show renders tokens compactly: names and numbers as written, string

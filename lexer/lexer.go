@@ -19,8 +19,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"fennic/diag"
-	"fennic/token"
+	"github.com/kirannarayanak/fennic/diag"
+	"github.com/kirannarayanak/fennic/token"
 )
 
 type frameKind int

@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"fennic/diag"
-	"fennic/interp"
-	"fennic/parser"
+	"github.com/kirannarayanak/fennic/diag"
+	"github.com/kirannarayanak/fennic/interp"
+	"github.com/kirannarayanak/fennic/parser"
 )
 
 const usage = `usage:

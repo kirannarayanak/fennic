@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"fennic/ast"
-	"fennic/diag"
+	"github.com/kirannarayanak/fennic/ast"
+	"github.com/kirannarayanak/fennic/diag"
 )
 
 // TestResult is the outcome of one `test` block. Diag is set when it failed.

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"fennic/ast"
-	"fennic/token"
+	"github.com/kirannarayanak/fennic/ast"
+	"github.com/kirannarayanak/fennic/token"
 )
 
 func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {

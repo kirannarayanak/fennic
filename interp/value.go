@@ -5,7 +5,7 @@
 package interp
 
 import (
-	"fennic/ast"
+	"github.com/kirannarayanak/fennic/ast"
 )
 
 // Value is any Fennic value:

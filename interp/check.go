@@ -3,8 +3,8 @@ package interp
 import (
 	"fmt"
 
-	"fennic/ast"
-	"fennic/diag"
+	"github.com/kirannarayanak/fennic/ast"
+	"github.com/kirannarayanak/fennic/diag"
 )
 
 // Check finds the mistakes that are certain before the program runs:
