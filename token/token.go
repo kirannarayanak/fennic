@@ -52,6 +52,7 @@ const (
 	For
 	In
 	Fail
+	Spawn
 	None
 	True
 	False
@@ -96,7 +97,7 @@ var names = map[Kind]string{
 	Str: "string", StrHead: "string", StrMid: "string", StrTail: "string",
 	Let: "let", Var: "var", Fn: "fn", Type: "type", Match: "match",
 	Interface: "interface", Together: "together", Test: "test", Assert: "assert",
-	With: "with", Or: "or", And: "and", Not: "not", Else: "else", If: "if", For: "for", In: "in", Fail: "fail", None: "none", True: "true", False: "false",
+	With: "with", Or: "or", And: "and", Not: "not", Else: "else", If: "if", For: "for", In: "in", Fail: "fail", Spawn: "spawn", None: "none", True: "true", False: "false",
 	LParen: "(", RParen: ")", LBrace: "{", RBrace: "}", LBracket: "[", RBracket: "]",
 	Comma: ",", Colon: ":", Semi: ";", Dot: ".", DotDot: "..", Arrow: "->", Pipe: "|>", Bar: "|",
 	Question: "?", QDot: "?.", QQ: "??", Bang: "!", Assign: "=", PlusEq: "+=", Eq: "==", NotEq: "!=",
@@ -114,7 +115,7 @@ func (k Kind) String() string {
 var Keywords = map[string]Kind{
 	"let": Let, "var": Var, "fn": Fn, "type": Type, "match": Match,
 	"interface": Interface, "together": Together, "test": Test, "assert": Assert,
-	"with": With, "or": Or, "and": And, "not": Not, "else": Else, "if": If, "for": For, "in": In, "fail": Fail, "none": None, "true": True, "false": False,
+	"with": With, "or": Or, "and": And, "not": Not, "else": Else, "if": If, "for": For, "in": In, "fail": Fail, "spawn": Spawn, "none": None, "true": True, "false": False,
 }
 
 // Token is one lexeme. Text is the exact source text; Value is the decoded

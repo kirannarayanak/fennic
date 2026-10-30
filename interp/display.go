@@ -1,6 +1,7 @@
 package interp
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -72,6 +73,10 @@ func write(b *strings.Builder, v Value) {
 		b.WriteByte('}')
 	case Order:
 		b.WriteString(string(v))
+	case Date:
+		fmt.Fprintf(b, "%04d-%02d-%02d", v.Year, v.Month, v.Day)
+	case *Channel:
+		b.WriteString("<channel>")
 	case *Tuple:
 		b.WriteByte('(')
 		for i, e := range v.Elems {

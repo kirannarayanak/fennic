@@ -114,6 +114,9 @@ func (m *Map) with(k, v Value) *Map {
 	return out
 }
 
+// Date is a calendar day.
+type Date struct{ Year, Month, Day int }
+
 // Order is `asc` or `desc`, for sort_by_value.
 type Order string
 
@@ -166,6 +169,10 @@ func kindName(v Value) string {
 		return "Map"
 	case Order:
 		return "order"
+	case Date:
+		return "Date"
+	case *Channel:
+		return "channel"
 	case *Record:
 		if v.Type.Name == "" {
 			return "record"

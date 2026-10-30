@@ -25,6 +25,8 @@ acceptance suite.
 | error | (no name to write) | `err` in `else err -> ...` |
 | tuple | (no name to write) | `(1, "a")` |
 | map | `Map[K, V]` | `Map{"a": 1}` |
+| channel | `Chan[T]` | `Chan[Str](100)` |
+| date | `Date` | a calendar day, read from CSV or JSON as `YYYY-MM-DD` |
 | map entry | (no name to write) | what `sort_by_value` and `top` give: `.key` and `.value`, or `.key` and `.count` |
 
 Records and sum types are nominal: two types with the same fields are
@@ -103,7 +105,14 @@ constraint `[T: I]` is checked once `T` is known. `Ord` is built in and
 holds for Int, Float and Str; any other constraint is an interface.
 
 **Concurrency.** `together { ... }` has the block's type made failable.
-`map_par` is allowed only inside `together`.
+`map_par` and `spawn` are allowed only inside `together`, without leaving
+the function they are in. `spawn f` starts `f`, a function of no
+arguments, as a task; it gives nothing. The block waits for every task it
+started; the first task to fail cancels the others, and its failure is the
+block's. A runtime error in a task stops the program. `Chan[T](n)` makes a
+channel holding up to `n` values; `.send(x)` and `.close()` are its
+methods, and `for x in ch` receives until it is closed and empty. Sending
+and receiving give up when the task is cancelled.
 
 **Strings.** Interpolation accepts any value except a failable or a
 function. `print` and `log.warn` take a Str. `assert` takes a Bool.
@@ -168,6 +177,12 @@ map_values(Map[K, V], (V) -> W) -> Map[K, W]
 sum_by(List[T], (T) -> N) -> N                 N is Int or Float
 sort_by_value(Map[K, V], asc | desc) -> List[Entry[K, V]]
 csv.read[T](Str) -> List[T]!                   T is a record; or from context
+flatten(List[List[T]]) -> List[T]
+unique(List[T]) -> List[T]                     first of each, in order
+json.encode(T) -> Str                          records, lists, Str-keyed maps, plain values
+fs.list(Str, Str) -> List[Str]!                files in a directory matching a pattern
+fs.write(Str, Str) -> nothing!
+Chan[T](Int) -> Chan[T]
 int.parse(Str) -> Int!
 fs.read(Str) -> Str!
 json.parse(Str) -> T!                          T from the expected type, or json.parse[T]

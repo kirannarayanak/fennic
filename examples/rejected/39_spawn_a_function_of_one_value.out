@@ -1,0 +1,6 @@
+error: `spawn` runs a function with no arguments, but this one takes 1
+ --> 39_spawn_a_function_of_one_value.fn:3:11
+  |
+3 |     spawn n -> print("{n}")
+  |           ^^^^^^^^^^^^^^^^^
+help: spawn a function of no arguments, like `spawn fn() { ... }`

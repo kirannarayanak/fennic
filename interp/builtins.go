@@ -181,6 +181,33 @@ func (in *Interp) prelude() *Env {
 		}
 		return out
 	})
+	def("Chan", func(in *Interp, c *callSite, args []Value) Value {
+		n := args[0].(int64)
+		if n < 0 {
+			in.fail(c.node, "give a size of 0 or more", "a channel cannot hold %d values", n)
+		}
+		return &Channel{ch: make(chan Value, n)}
+	})
+	def("flatten", func(in *Interp, c *callSite, args []Value) Value {
+		out := &List{}
+		for _, inner := range in.listArg(c, "flatten", args, 1).Elems {
+			out.Elems = append(out.Elems, inner.(*List).Elems...)
+		}
+		return out
+	})
+	def("unique", func(in *Interp, c *callSite, args []Value) Value {
+		out := &List{}
+	next:
+		for _, e := range in.listArg(c, "unique", args, 1).Elems {
+			for _, seen := range out.Elems {
+				if equal(seen, e) {
+					continue next
+				}
+			}
+			out.Elems = append(out.Elems, e)
+		}
+		return out
+	})
 	env.Define("asc", Order("asc"), false)
 	env.Define("desc", Order("desc"), false)
 	env.Define("csv", &Module{Name: "csv", Members: map[string]Value{
@@ -253,10 +280,13 @@ func (in *Interp) prelude() *Env {
 	def("map_par", builtinMapPar)
 
 	env.Define("fs", &Module{Name: "fs", Members: map[string]Value{
-		"read": &Builtin{Name: "fs.read", Fn: builtinRead},
+		"read":  &Builtin{Name: "fs.read", Fn: builtinRead},
+		"list":  &Builtin{Name: "fs.list", Fn: builtinList},
+		"write": &Builtin{Name: "fs.write", Fn: builtinWrite},
 	}}, false)
 	env.Define("json", &Module{Name: "json", Members: map[string]Value{
-		"parse": &Builtin{Name: "json.parse", Fn: builtinParseJSON},
+		"parse":  &Builtin{Name: "json.parse", Fn: builtinParseJSON},
+		"encode": &Builtin{Name: "json.encode", Fn: builtinEncodeJSON},
 	}}, false)
 	env.Define("int", &Module{Name: "int", Members: map[string]Value{
 		"parse": &Builtin{Name: "int.parse", Fn: func(in *Interp, c *callSite, args []Value) Value {
@@ -332,6 +362,15 @@ func (in *Interp) builtinMethod(f *ast.FieldExpr, recv Value, argExprs []ast.Exp
 	case *Map:
 		if f.Name.Name == "len" {
 			return int64(len(r.Keys)), true
+		}
+	case *Channel:
+		switch f.Name.Name {
+		case "send":
+			in.send(r, in.eval(argExprs[0], env, site.t), site)
+			return Unit, true
+		case "close":
+			in.closeChan(r, site)
+			return Unit, true
 		}
 	}
 	return nil, false
@@ -496,9 +535,51 @@ func readFailure(path string, err error) string {
 // readFile reads a file, resolving a relative path against the program's
 // directory.
 func (in *Interp) readFile(path string) ([]byte, error) {
-	full := path
-	if !filepath.IsAbs(full) {
-		full = filepath.Join(in.dir, path)
+	return os.ReadFile(in.resolve(path))
+}
+
+// resolve makes a relative path relative to the program's directory.
+func (in *Interp) resolve(path string) string {
+	if filepath.IsAbs(path) {
+		return path
 	}
-	return os.ReadFile(full)
+	return filepath.Join(in.dir, path)
+}
+
+// builtinList lists the files in dir whose names match pattern, such as
+// "*.csv", sorted by name. Each path is dir joined with the name, so it can
+// be read directly.
+func builtinList(in *Interp, c *callSite, args []Value) Value {
+	dir, pattern := args[0].(string), args[1].(string)
+	info, err := os.Stat(in.resolve(dir))
+	if err != nil {
+		msg := strings.Replace(readFailure(dir, err), "cannot read", "cannot list", 1)
+		return &Failure{Msg: strings.Replace(msg, "file not found", "directory not found", 1)}
+	}
+	if !info.IsDir() {
+		return &Failure{Msg: fmt.Sprintf("cannot list %s: it is a file, not a directory", show(dir))}
+	}
+	if _, err := filepath.Match(pattern, ""); err != nil {
+		return &Failure{Msg: fmt.Sprintf("%s is not a valid file pattern", show(pattern))}
+	}
+	entries, err := os.ReadDir(in.resolve(dir))
+	if err != nil {
+		return &Failure{Msg: strings.Replace(readFailure(dir, err), "cannot read", "cannot list", 1)}
+	}
+	out := &List{}
+	for _, e := range entries {
+		if ok, _ := filepath.Match(pattern, e.Name()); ok && !e.IsDir() {
+			out.Elems = append(out.Elems, filepath.Join(dir, e.Name()))
+		}
+	}
+	return out
+}
+
+// builtinWrite writes text to a file, replacing what was there.
+func builtinWrite(in *Interp, c *callSite, args []Value) Value {
+	path, text := args[0].(string), args[1].(string)
+	if err := os.WriteFile(in.resolve(path), []byte(text), 0o644); err != nil {
+		return &Failure{Msg: strings.Replace(readFailure(path, err), "cannot read", "cannot write", 1)}
+	}
+	return Unit
 }

@@ -202,13 +202,15 @@ acceptance run.
 - JSON failures that name the line.
 - Spec programs 5, 11 and 17 run as written, with no preamble.
 
-**Concurrency and data formats: last.**
-- `spawn`, channels, `Date` and CSV dates (items 23–25).
-- The built-ins only program 20 uses: `fs.list`, `fs.write`,
-  `json.encode`, `flatten` and `unique`. Moved here from the collections
-  group, so they land with the program that needs them.
-- The rewrite of programs 18, 19 and 20 without `http.get` (decision 3).
-- **A question to settle then:** program 20 pipes
-  `fs.list(dir, "*.csv")` straight into `map_par` without `!`. So either
-  `fs.list` cannot fail, and a missing directory gives an empty list, or
-  the spec text changes to `fs.list(dir, "*.csv")!`.
+**Concurrency and data formats: done.**
+- `spawn`, channels (`Chan[T](n)`, `.send`, `.close`, `for x in ch`), and
+  `Date` with CSV and JSON dates.
+- `fs.list` (failable, decision 12), `fs.write`, `json.encode`, `flatten`
+  and `unique`.
+- `http.get` is cut. The tour and programs 18 and 19 read files instead
+  (decision 3).
+- Program 20 compares with `0.0` (decision 13).
+- **All twenty spec programs run as written** in `examples/m0`, and the
+  summary.json that program 20 writes is checked.
+
+**Remaining in M3:** step 4, the three real programs.

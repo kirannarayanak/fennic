@@ -1,0 +1,5 @@
+fn main() {
+  together {
+    spawn n -> print("{n}")
+  }
+}

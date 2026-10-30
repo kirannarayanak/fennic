@@ -1,0 +1,6 @@
+error: `spawn` starts a task, so it must run inside a `together` block
+ --> 36_spawn_outside_together.fn:2:3
+  |
+2 |   spawn fn() { print("working") }
+  |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: put it inside a `together { ... }` block, which waits for every task it starts

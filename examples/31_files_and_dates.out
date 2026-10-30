@@ -1,0 +1,9 @@
+["data/visits/mon.csv", "data/visits/tue.csv"]
+4 visits on 2 days: [2026-03-02, 2026-03-03]
+[
+  "Ada",
+  "Bo",
+  "Cy"
+]
+cannot list "data/nowhere": directory not found
+0 files

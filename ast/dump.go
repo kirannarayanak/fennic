@@ -213,6 +213,8 @@ func dump(b *strings.Builder, n Node) {
 		}
 	case *FailExpr:
 		list("fail", n.Msg)
+	case *SpawnExpr:
+		list("spawn", n.Fn)
 	case *FuncLit:
 		args := []any{paramsString(n.Params)}
 		if n.Result != nil {

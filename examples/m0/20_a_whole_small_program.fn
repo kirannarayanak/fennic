@@ -1,0 +1,34 @@
+type Row {
+  day: Date
+  region: Str
+  amount: Float
+}
+
+type Summary {
+  total: Float
+  days: Int
+}
+
+fn main(args: List[Str]) {
+  let dir = args[0] ?? "."
+
+  let rows = together {
+    fs.list(dir, "*.csv")! |> map_par(f -> csv.read[Row](f)!)
+  }! |> flatten()
+
+  let summary = rows
+    |> filter(r -> r.amount > 0.0)
+    |> group_by(r -> r.region)
+    |> map_values(rs -> Summary {
+         total: rs |> sum_by(r -> r.amount),
+         days: rs |> map(r -> r.day) |> unique() |> len(),
+       })
+
+  fs.write("summary.json", json.encode(summary))!
+  print("wrote {summary.len()} regions")
+}
+
+// ---- preamble: not part of the spec program ----
+// expect: args sales
+// Program 20 reads the CSV files in the directory named by its first
+// argument. It writes summary.json beside this file.

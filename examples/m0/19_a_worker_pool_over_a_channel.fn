@@ -1,0 +1,25 @@
+fn main() {
+  let jobs = Chan[Str](100)
+
+  together {
+    for _ in 1..8 {
+      spawn fn() {
+        for path in jobs {
+          save(fs.read(path) else "")
+        }
+      }
+    }
+    for path in paths { jobs.send(path) }
+    jobs.close()
+  }
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 19 uses `paths` and `save` without declaring them. Eight workers
+// run at once, so save prints the same line for every page, keeping the
+// output the same whatever order they finish in.
+let paths = ["pages/a.txt", "pages/b.txt", "pages/c.txt"]
+
+fn save(text: Str) {
+  print("saved a page")
+}

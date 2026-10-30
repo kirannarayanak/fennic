@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kirannarayanak/fennic/types"
 )
@@ -98,6 +99,13 @@ func cellValue(cell string, t types.Type) (Value, string) {
 		case "false":
 			return false, ""
 		}
+	case types.Date:
+		if d, ok := parseDate(cell); ok {
+			return d, ""
+		}
+		if cell != "" {
+			return nil, fmt.Sprintf("%s is not a Date; write dates as YYYY-MM-DD", show(cell))
+		}
 	}
 	if cell == "" {
 		return nil, fmt.Sprintf("the cell is empty, but the field is %s; make it optional if it may be empty", types.Article(types.String(t)))
@@ -114,4 +122,13 @@ func csvReason(err error, ifEmpty string) string {
 		return fmt.Sprintf("line %d: %v", pe.Line, pe.Err)
 	}
 	return err.Error()
+}
+
+// parseDate reads a day written YYYY-MM-DD.
+func parseDate(s string) (Date, bool) {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return Date{}, false
+	}
+	return Date{t.Year(), int(t.Month()), t.Day()}, true
 }

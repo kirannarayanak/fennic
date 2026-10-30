@@ -78,6 +78,8 @@ func (c *checker) expr(e ast.Expr, sc *scope, x *ctx, want Type) Type {
 		return c.ifExpr(e, sc, x, want)
 	case *ast.FailExpr:
 		return c.fail(e, sc, x)
+	case *ast.SpawnExpr:
+		return c.spawn(e, sc, x)
 	case *ast.IndexExpr:
 		return c.index(e, sc, x)
 	case *ast.MapLit:
@@ -133,6 +135,7 @@ var builtins = map[string]bool{
 	"sort": true, "reduce": true, "env": true,
 	"lower": true, "words": true, "tally": true, "top": true, "group_by": true,
 	"map_values": true, "sum_by": true, "sort_by_value": true,
+	"flatten": true, "unique": true,
 }
 
 var modules = map[string]bool{"fs": true, "json": true, "log": true, "int": true, "csv": true}
@@ -1060,4 +1063,24 @@ func (c *checker) mapLit(e *ast.MapLit, sc *scope, x *ctx, want Type) Type {
 		c.errorf(e, "use Str, Int or Bool keys", "map keys must be Str, Int or Bool, but these are %s", plural(key))
 	}
 	return &Map{key, val}
+}
+
+// spawn checks `spawn f`: f takes nothing, and the spawn sits inside a
+// `together`, which waits for it.
+func (c *checker) spawn(e *ast.SpawnExpr, sc *scope, x *ctx) Type {
+	if !x.insideTogether() {
+		c.errorf(e, "put it inside a `together { ... }` block, which waits for every task it starts",
+			"`spawn` starts a task, so it must run inside a `together` block")
+	}
+	t := c.expr(e.Fn, sc, x, &Func{nil, c.fresh()})
+	switch f := prune(t).(type) {
+	case *Bad:
+	case *Func:
+		if len(f.Params) != 0 {
+			c.errorf(e.Fn, "spawn a function of no arguments, like `spawn fn() { ... }`", "`spawn` runs a function with no arguments, but this one takes %d", len(f.Params))
+		}
+	default:
+		c.errorf(e.Fn, "spawn a function, like `spawn fn() { ... }`", "`spawn` needs a function, but this is %s", article(t))
+	}
+	return Unit
 }

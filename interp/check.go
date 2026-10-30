@@ -190,6 +190,8 @@ func (c *checker) expr(e ast.Expr) {
 		}
 	case *ast.FailExpr:
 		c.expr(e.Msg)
+	case *ast.SpawnExpr:
+		c.expr(e.Fn)
 	case *ast.FuncLit:
 		c.push()
 		for _, p := range e.Params {

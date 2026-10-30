@@ -402,6 +402,10 @@ func (p *parser) parsePrimary() ast.Expr {
 		return x
 	case token.If:
 		return p.parseIf()
+	case token.Spawn:
+		p.next()
+		fn := p.parseUnary()
+		return &ast.SpawnExpr{Span: p.span(start), Fn: fn}
 	case token.Fail:
 		p.next()
 		msg := p.parseOr()

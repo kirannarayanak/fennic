@@ -234,18 +234,24 @@ func TestM0(t *testing.T) {
 		t.Fatalf("found %d programs in the spec, want 20", len(programs))
 	}
 
+	// Run in a copy, so programs that write files (20 writes summary.json)
+	// leave the repository alone.
+	work := t.TempDir()
+	if err := os.CopyFS(work, os.DirFS("../examples/m0")); err != nil {
+		t.Fatal(err)
+	}
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chdir("../examples/m0"); err != nil {
+	if err := os.Chdir(work); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Chdir(wd)
 
 	files, _ := filepath.Glob("*.fn")
-	if len(files) == 0 {
-		t.Fatal("no programs in examples/m0")
+	if len(files) != 20 {
+		t.Fatalf("found %d programs in examples/m0, want all 20", len(files))
 	}
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
@@ -259,6 +265,18 @@ func TestM0(t *testing.T) {
 			}
 			runExpecting(t, f)
 		})
+	}
+	// Program 20's real output is the file it writes.
+	got, err := os.ReadFile("summary.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile("20_summary.json.expected")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("summary.json differs\n--- got\n%s\n--- want\n%s", got, want)
 	}
 }
 

@@ -1,0 +1,6 @@
+error: `for` goes over a List or a channel, but this is a List[Str]!, which might be a failure
+ --> 40_list_files_without_handling_failure.fn:1:10
+  |
+1 | for f in fs.list("data", "*.csv") {
+  |          ^^^^^^^^^^^^^^^^^^^^^^^^
+help: handle the failure first: `fs.list("data", "*.csv") else []` gives a fallback, and `fs.list("data", "*.csv")!` passes it on

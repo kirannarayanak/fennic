@@ -356,3 +356,33 @@ func TestCollectionsRuntime(t *testing.T) {
 		{"group_by keeps first-seen order", `print("{[3, 1, 4, 1, 5] |> group_by(n -> n % 2 == 0)}")`, "Map{false: [3, 1, 1, 5], true: [4]}"},
 	})
 }
+
+func TestConcurrency(t *testing.T) {
+	runCases(t, []runCase{
+		{"no task outlives together",
+			"let done = Chan[Int](100)\ntogether {\n  for n in 1..20 {\n    spawn fn() { done.send(n) }\n  }\n}\ndone.close()\nvar count = 0\nfor _ in done {\n  count += 1\n}\nprint(\"{count}\")",
+			"20"},
+		{"a failing task fails the block",
+			"together {\n  spawn fn() { fail \"broke\" }\n} else e -> { print(\"{e}\") }",
+			"broke"},
+		{"cancellation frees a blocked task",
+			"let never = Chan[Int](0)\ntogether {\n  spawn fn() {\n    for n in never { print(\"{n}\") }\n  }\n  fail \"stop\"\n} else e -> { print(\"{e}\") }",
+			"stop"},
+		{"a blocked send is cancelled too",
+			"let full = Chan[Int](0)\ntogether {\n  spawn fn() { full.send(1) }\n  spawn fn() { fail \"gave up\" }\n} else e -> { print(\"{e}\") }",
+			"gave up"},
+		{"a closed channel still gives what it holds",
+			"let ch = Chan[Str](3)\nch.send(\"a\")\nch.send(\"b\")\nch.close()\nfor s in ch {\n  print(s)\n}",
+			"a\nb"},
+		{"together gives its last expression",
+			"let v = together { 41 + 1 }!\nprint(\"{v}\")", "42"},
+		{"flatten and unique", `print("{[[1, 2], [], [2, 3]] |> flatten() |> unique()}")`, "[1, 2, 3]"},
+		{"json.encode", "type P {\n  name: Str\n  tags: List[Str]\n  note: Str?\n}\nprint(json.encode(Map{\"p\": P { name: \"a\\\"b\", tags: [], note: none }}))",
+			"{\n  \"p\": {\n    \"name\": \"a\\\"b\",\n    \"tags\": [],\n    \"note\": null\n  }\n}"},
+	})
+	errCases(t, []errCase{
+		{"a runtime error in a task stops the program", "together {\n  spawn fn() { let x = 1 / 0 }\n}", "division by zero", "check the divisor before dividing"},
+		{"send on a closed channel", "let ch = Chan[Int](1)\nch.close()\nch.send(1)", "cannot send on a channel that is closed", "send every value before calling `.close()`"},
+		{"close twice", "let ch = Chan[Int](1)\nch.close()\nch.close()", "this channel is already closed", "close a channel once, after the last send"},
+	})
+}

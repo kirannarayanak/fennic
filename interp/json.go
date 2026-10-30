@@ -98,6 +98,12 @@ func (in *Interp) fromJSON(v Value, t types.Type, path string, lines *jsonLines,
 			if b, ok := v.(bool); ok {
 				return b, 0, ""
 			}
+		case types.Date:
+			if s, ok := v.(string); ok {
+				if d, ok := parseDate(s); ok {
+					return d, 0, ""
+				}
+			}
 		}
 		return wrong()
 	case *types.List:
@@ -274,4 +280,79 @@ func jsonError(text string, dec *json.Decoder, err error) string {
 	}
 	r, _ := utf8.DecodeRuneInString(text[off:])
 	return fmt.Sprintf("invalid JSON at %d:%d: unexpected %s", line, col, show(string(r)))
+}
+
+// builtinEncodeJSON writes a value as JSON, indented by two spaces. Records
+// and maps keep their order, none is null, and a Date is a "YYYY-MM-DD"
+// string.
+func builtinEncodeJSON(in *Interp, c *callSite, args []Value) Value {
+	var b strings.Builder
+	encodeJSON(&b, args[0], "")
+	return b.String()
+}
+
+func encodeJSON(b *strings.Builder, v Value, indent string) {
+	inner := indent + "  "
+	object := func(keys []string, vals []Value) {
+		if len(keys) == 0 {
+			b.WriteString("{}")
+			return
+		}
+		b.WriteString("{\n")
+		for i, k := range keys {
+			kj, _ := json.Marshal(k)
+			b.WriteString(inner)
+			b.Write(kj)
+			b.WriteString(": ")
+			encodeJSON(b, vals[i], inner)
+			if i < len(keys)-1 {
+				b.WriteByte(',')
+			}
+			b.WriteByte('\n')
+		}
+		b.WriteString(indent + "}")
+	}
+	array := func(vals []Value) {
+		if len(vals) == 0 {
+			b.WriteString("[]")
+			return
+		}
+		b.WriteString("[\n")
+		for i, e := range vals {
+			b.WriteString(inner)
+			encodeJSON(b, e, inner)
+			if i < len(vals)-1 {
+				b.WriteByte(',')
+			}
+			b.WriteByte('\n')
+		}
+		b.WriteString(indent + "]")
+	}
+	switch v := v.(type) {
+	case int64, bool:
+		fmt.Fprint(b, v)
+	case float64:
+		b.WriteString(formatFloat(v))
+	case string:
+		s, _ := json.Marshal(v)
+		b.Write(s)
+	case Date:
+		fmt.Fprintf(b, "\"%04d-%02d-%02d\"", v.Year, v.Month, v.Day)
+	case noneValue:
+		b.WriteString("null")
+	case *List:
+		array(v.Elems)
+	case *Tuple:
+		array(v.Elems)
+	case *Record:
+		object(v.Type.Fields, v.Fields)
+	case *Map:
+		keys := make([]string, len(v.Keys))
+		for i, k := range v.Keys {
+			keys[i] = k.(string)
+		}
+		object(keys, v.Vals)
+	default:
+		b.WriteString("null")
+	}
 }

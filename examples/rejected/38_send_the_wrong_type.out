@@ -1,0 +1,6 @@
+error: this channel carries Ints, so `.send` needs an Int, but this is a Str
+ --> 38_send_the_wrong_type.fn:2:11
+  |
+2 | jobs.send("one")
+  |           ^^^^^
+help: send an Int

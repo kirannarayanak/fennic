@@ -22,6 +22,7 @@ var (
 	Unit  = &Basic{"nothing"}
 	Error = &Basic{"Error"}
 	Order = &Basic{"Order"} // asc or desc, for sort_by_value
+	Date  = &Basic{"Date"}  // a calendar day, read from CSV or JSON as YYYY-MM-DD
 )
 
 type List struct{ Elem Type }
@@ -94,6 +95,9 @@ type Entry struct {
 	ValName  string
 }
 
+// Chan is `Chan[T]`, a channel that tasks send values through.
+type Chan struct{ Elem Type }
+
 // Tuple is `(A, B)`.
 type Tuple struct{ Elems []Type }
 
@@ -124,6 +128,7 @@ func (*Param) typ() {}
 func (*Func) typ()  {}
 func (*Tuple) typ() {}
 func (*Map) typ()   {}
+func (*Chan) typ()  {}
 func (*Entry) typ() {}
 func (*Var) typ()   {}
 func (*Bad) typ()   {}
@@ -165,6 +170,8 @@ func Resolve(t Type) Type {
 		return &Tuple{es}
 	case *Map:
 		return &Map{Resolve(t.Key), Resolve(t.Val)}
+	case *Chan:
+		return &Chan{Resolve(t.Elem)}
 	case *Entry:
 		return &Entry{Resolve(t.Key), Resolve(t.Val), t.ValName}
 	default:
@@ -203,6 +210,8 @@ func String(t Type) string {
 		return "(" + strings.Join(es, ", ") + ")"
 	case *Map:
 		return "Map[" + String(t.Key) + ", " + String(t.Val) + "]"
+	case *Chan:
+		return "Chan[" + String(t.Elem) + "]"
 	case *Entry:
 		if t.ValName == "count" {
 			return "Count[" + String(t.Key) + "]"
@@ -300,6 +309,8 @@ func occurs(v *Var, t Type) bool {
 		}
 	case *Map:
 		return occurs(v, t.Key) || occurs(v, t.Val)
+	case *Chan:
+		return occurs(v, t.Elem)
 	case *Entry:
 		return occurs(v, t.Key) || occurs(v, t.Val)
 	}
@@ -360,6 +371,9 @@ func unify(a, b Type) bool {
 	case *Map:
 		y, ok := b.(*Map)
 		return ok && unify(x.Key, y.Key) && unify(x.Val, y.Val)
+	case *Chan:
+		y, ok := b.(*Chan)
+		return ok && unify(x.Elem, y.Elem)
 	case *Entry:
 		y, ok := b.(*Entry)
 		return ok && x.ValName == y.ValName && unify(x.Key, y.Key) && unify(x.Val, y.Val)

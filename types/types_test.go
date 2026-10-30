@@ -308,7 +308,7 @@ func TestControlFlowTypes(t *testing.T) {
 		{"or on a failure suggests else", `let t = fs.read("x") or ""`, "`or` combines two Bools, but this is a Str!, which might be a failure | to give a fallback for a failure, write `else`: `fs.read(\"x\") else \"\"`"},
 		{"for over a list", "for x in [1, 2] {\n  print(\"{x + 1}\")\n}", ""},
 		{"for over a range", "var t = 0\nfor n in 1..10 {\n  t += n\n}", ""},
-		{"for over a number", "for n in 3 { }", "`for` goes over a List, but this is an Int | go over a List or a range, like `for n in 1..10`"},
+		{"for over a number", "for n in 3 { }", "`for` goes over a List or a channel, but this is an Int | go over a List or a range, like `for n in 1..10`"},
 		{"range of floats", `let r = 1.0..2.0`, "`..` makes a range of Ints, but this is a Float | "},
 		{"plus equals keeps the type", "var s = 0\ns += 1.5", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
 		{"underscore cannot be read", "for _ in [1] {\n  print(_)\n}", "`_` stands for a value that is not used, so it cannot be read | give the value a name to use it"},
@@ -399,6 +399,24 @@ func TestCollections(t *testing.T) {
 		{"csv.read", "type R {\n  a: Int\n  b: Str?\n}\nlet rows = csv.read[R](\"x.csv\") else []\nlet n = rows.len()", ""},
 		{"csv.read from context", "type R {\n  a: Int\n}\nfn load() -> List[R]! { csv.read(\"x.csv\") }", ""},
 		{"csv.read needs a record", "let rows = csv.read[Int](\"x.csv\")", "`csv.read` reads rows into a record, but this is an Int | read into a record type, one field per column"},
-		{"csv.read field types", "type R {\n  a: List[Int]\n}\nlet rows = csv.read[R](\"x.csv\")", "`csv.read` cannot fill field `a` of `R`: a CSV cell cannot become a List[Int] | give each column an Int, a Float, a Str or a Bool field, optional if it may be empty"},
+		{"csv.read field types", "type R {\n  a: List[Int]\n}\nlet rows = csv.read[R](\"x.csv\")", "`csv.read` cannot fill field `a` of `R`: a CSV cell cannot become a List[Int] | give each column an Int, a Float, a Str, a Bool or a Date field, optional if it may be empty"},
+	})
+}
+
+func TestConcurrencyTypes(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"spawn in together", "together {\n  spawn fn() { print(\"x\") }\n}", ""},
+		{"spawn a failing function", "together {\n  spawn fn() { fail \"x\" }\n}", ""},
+		{"spawn outside together", "spawn fn() { }", "`spawn` starts a task, so it must run inside a `together` block | put it inside a `together { ... }` block, which waits for every task it starts"},
+		{"spawn a value", "together {\n  spawn 3\n}", "`spawn` needs a function, but this is an Int | spawn a function, like `spawn fn() { ... }`"},
+		{"channel", "let c = Chan[Int](1)\nc.send(1)\nc.close()\nfor n in c {\n  print(\"{n + 1}\")\n}", ""},
+		{"channel type written", "fn feed(c: Chan[Str]) { c.send(\"x\") }", ""},
+		{"channel size", "let c = Chan[Int](\"big\")", "`Chan` needs an Int, how many values it can hold, but this is a Str | pass an Int, like `Chan[Str](100)`"},
+		{"channel method", "let c = Chan[Int](1)\nc.push(1)", "a channel has no method `push` | a channel has `.send(x)` and `.close()`; read it with `for x in ch`"},
+		{"dates", "type V {\n  day: Date\n}\nlet vs = csv.read[V](\"v.csv\") else []\nlet days = vs |> map(v -> v.day) |> unique()", ""},
+		{"fs.list fails", "let fs_ = fs.list(\".\", \"*\")\nlet n = fs_.len()", "`fs_` is a List[Str]!, which might be a failure, so `.len` cannot be read yet | handle the failure first: `fs_!` passes it on, and `else` gives a fallback"},
+		{"fs.write fails", "fn main() {\n  fs.write(\"a\", \"b\")!\n}", ""},
+		{"flatten needs lists", "let x = [1] |> flatten()", "`flatten` needs a list of lists, but this list holds Ints | "},
+		{"json.encode of a map with Int keys", "print(json.encode(Map{1: \"a\"}))", "`json.encode` cannot encode a Map[Int, Str]: only maps with Str keys have a JSON form | encode records, lists, maps with Str keys, and plain values"},
 	})
 }

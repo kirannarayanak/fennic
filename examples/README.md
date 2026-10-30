@@ -43,6 +43,8 @@ M1 is done when every program here runs and its output matches the file beside i
 | maps: `Map{...}`, `m[k]`, `m[k] = v`, `map_values`, `sort_by_value` | 27 |
 | `lower`, `words`, `tally`, `top` | 28 |
 | `csv.read`, `group_by`, `sum_by` | 29 |
+| `spawn`, channels, cancellation | 30 |
+| `fs.list`, `Date`, `flatten`, `unique`, `json.encode` | 31 |
 
 Line-1 directives may also be `// expect: args a b` (command-line
 arguments) or `// expect: env NAME=value`. `examples/m0/` holds the

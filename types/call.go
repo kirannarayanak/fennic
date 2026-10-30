@@ -25,6 +25,9 @@ func (c *checker) call(node ast.Node, callee ast.Expr, args []ast.Expr, pipeX as
 		if builtins[name] {
 			return c.builtin(name, node, args, sc, x, want)
 		}
+		if name == "Chan" {
+			return c.newChan(node, args, sc, x, want)
+		}
 		if v, ok := c.variant[name]; ok {
 			return c.construct(node, v, args, sc, x)
 		}
@@ -241,6 +244,8 @@ func subst(t Type, m map[*Param]Type) Type {
 		return &Tuple{es}
 	case *Map:
 		return &Map{subst(t.Key, m), subst(t.Val, m)}
+	case *Chan:
+		return &Chan{subst(t.Elem, m)}
 	case *Entry:
 		return &Entry{subst(t.Key, m), subst(t.Val, m), t.ValName}
 	}
@@ -272,6 +277,7 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		"print": 1, "log.warn": 1, "len": 1, "last": 1, "sum": 1, "fs.read": 1, "json.parse": 1,
 		"sort": 1, "env": 1, "int.parse": 1, "lower": 1, "words": 1, "tally": 1, "csv.read": 1,
 		"top": 2, "group_by": 2, "map_values": 2, "sum_by": 2, "sort_by_value": 2,
+		"flatten": 1, "unique": 1, "json.encode": 1, "fs.list": 2, "fs.write": 2,
 		"map": 2, "each": 2, "filter": 2, "sort_by": 2, "take": 2, "map_par": 2, "reduce": 2,
 	}
 	if name == "first" {
@@ -316,6 +322,42 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 	case "int.parse":
 		strArg(0)
 		return &Fail{Int}
+	case "flatten":
+		elem := c.listArg(name, args[0], sc, x)
+		switch inner := prune(elem).(type) {
+		case *List:
+			return inner
+		case *Var:
+			e := c.fresh()
+			unify(inner, &List{e})
+			return &List{e}
+		case *Bad:
+			return bad
+		}
+		c.errorf(args[0], "", "`flatten` needs a list of lists, but this list holds %s", plural(elem))
+		return bad
+	case "unique":
+		return &List{c.listArg(name, args[0], sc, x)}
+	case "json.encode":
+		t := c.expr(args[0], sc, x, nil)
+		if why := jsonable(t); why != "" && !isBad(t) && !unknownType(t) {
+			c.errorf(args[0], "encode records, lists, maps with Str keys, and plain values", "`json.encode` cannot encode %s: %s", article(t), why)
+		}
+		return Str
+	case "fs.list":
+		strArg(0)
+		got := c.expr(args[1], sc, x, Str)
+		if a := c.assign(Str, got); !a.ok {
+			c.mismatch(args[1], Str, got, a, "`fs.list` needs a Str pattern", "pass a pattern, like `\"*.csv\"`")
+		}
+		return &Fail{&List{Str}}
+	case "fs.write":
+		strArg(0)
+		got := c.expr(args[1], sc, x, Str)
+		if a := c.assign(Str, got); !a.ok {
+			c.mismatch(args[1], Str, got, a, "`fs.write` needs a Str to write", "pass a Str")
+		}
+		return &Fail{Unit}
 	case "lower":
 		strArg(0)
 		return Str
@@ -584,7 +626,7 @@ func unknownType(t Type) bool {
 func jsonable(t Type) string {
 	switch t := prune(t).(type) {
 	case *Basic:
-		if t == Unit || t == Error {
+		if t == Unit || t == Error || t == Order {
 			return "it has no JSON form"
 		}
 		return ""
@@ -592,6 +634,11 @@ func jsonable(t Type) string {
 		return jsonable(t.Elem)
 	case *Opt:
 		return jsonable(t.Elem)
+	case *Map:
+		if prune(t.Key) != Str && !unknownType(t.Key) {
+			return "only maps with Str keys have a JSON form"
+		}
+		return jsonable(t.Val)
 	case *Named:
 		if t.IsSum() {
 			return "sum types have no JSON form"
@@ -618,6 +665,9 @@ func typeArgsOf(node ast.Node) []ast.TypeExpr {
 // or a Str, and `.push(x)` on a List.
 func (c *checker) builtinMethod(node ast.Node, fn *ast.FieldExpr, recv Type, args []ast.Expr, sc *scope, x *ctx) (Type, bool) {
 	r := prune(recv)
+	if ch, isChan := r.(*Chan); isChan {
+		return c.chanMethod(node, fn, ch, args, sc, x), true
+	}
 	l, isList := r.(*List)
 	_, isMap := r.(*Map)
 	isStr := r == Str
@@ -699,12 +749,62 @@ func (c *checker) csvRead(node ast.Node, want Type) Type {
 		if o, opt := ft.(*Opt); opt {
 			ft = prune(o.Elem)
 		}
-		if ft != Int && ft != Float && ft != Str && ft != Bool {
-			c.errorf(node, "give each column an Int, a Float, a Str or a Bool field, optional if it may be empty",
+		if ft != Int && ft != Float && ft != Str && ft != Bool && ft != Date {
+			c.errorf(node, "give each column an Int, a Float, a Str, a Bool or a Date field, optional if it may be empty",
 				"`csv.read` cannot fill field `%s` of `%s`: a CSV cell cannot become %s", f.Name, n.Name, article(f.Type))
 			return bad
 		}
 	}
 	c.info.Targets[node] = rec
 	return &Fail{&List{rec}}
+}
+
+// newChan checks `Chan[T](n)`: a channel of T with room for n values.
+func (c *checker) newChan(node ast.Node, args []ast.Expr, sc *scope, x *ctx, want Type) Type {
+	var elem Type
+	if targs := typeArgsOf(node); len(targs) == 1 {
+		elem = c.typeOf(targs[0], nil)
+	} else if ch, ok := prune(want).(*Chan); ok {
+		elem = ch.Elem
+	}
+	if len(args) != 1 {
+		c.checkArgsLoosely(args, sc, x)
+		c.errorf(node, "give how many values it can hold: `Chan[Str](100)`", "`Chan` takes 1 argument, but was given %d", len(args))
+		return bad
+	}
+	got := c.expr(args[0], sc, x, Int)
+	if a := c.assign(Int, got); !a.ok {
+		c.mismatch(args[0], Int, got, a, "`Chan` needs an Int, how many values it can hold", "pass an Int, like `Chan[Str](100)`")
+	}
+	if elem == nil {
+		c.errorf(node, "name what it carries: `Chan[Str](100)`", "cannot tell what type of value this channel carries")
+		return bad
+	}
+	return &Chan{elem}
+}
+
+// chanMethod checks `.send(x)` and `.close()` on a channel.
+func (c *checker) chanMethod(node ast.Node, fn *ast.FieldExpr, ch *Chan, args []ast.Expr, sc *scope, x *ctx) Type {
+	switch fn.Name.Name {
+	case "send":
+		if len(args) != 1 {
+			c.checkArgsLoosely(args, sc, x)
+			c.errorf(node, "send one value: `ch.send(x)`", "`.send` takes 1 argument, but was given %d", len(args))
+			return Unit
+		}
+		got := c.expr(args[0], sc, x, ch.Elem)
+		if a := c.assign(ch.Elem, got); !a.ok {
+			c.mismatch(args[0], ch.Elem, got, a, "this channel carries "+plural(ch.Elem)+", so `.send` needs "+article(ch.Elem), "send "+article(ch.Elem))
+		}
+		return Unit
+	case "close":
+		if len(args) != 0 {
+			c.checkArgsLoosely(args, sc, x)
+			c.errorf(node, "", "`.close` takes no arguments, but was given %d", len(args))
+		}
+		return Unit
+	}
+	c.checkArgsLoosely(args, sc, x)
+	c.errorf(fn.Name, "a channel has `.send(x)` and `.close()`; read it with `for x in ch`", "a channel has no method `%s`", fn.Name.Name)
+	return bad
 }

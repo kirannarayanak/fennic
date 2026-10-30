@@ -226,6 +226,14 @@ func (c *checker) typeOf(t ast.TypeExpr, scope map[string]*Param) Type {
 			return Str
 		case "Bool":
 			return Bool
+		case "Date":
+			return Date
+		case "Chan":
+			if len(t.Args) != 1 {
+				c.errorf(t, "write what it carries: `Chan[Str]`", "`Chan` needs one element type")
+				return bad
+			}
+			return &Chan{c.typeOf(t.Args[0], scope)}
 		case "List":
 			if len(t.Args) != 1 {
 				c.errorf(t, "write the element type: `List[Int]`", "`List` needs one element type")
@@ -612,12 +620,14 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 		switch l := prune(t).(type) {
 		case *List:
 			elem = l.Elem
+		case *Chan:
+			elem = l.Elem // until the channel is closed
 		case *Var:
 			elem = c.fresh()
 			unify(l, &List{elem})
 		case *Bad:
 		default:
-			c.mismatch(s.In, &List{c.fresh()}, t, assignment{}, "`for` goes over a List", "go over a List or a range, like `for n in 1..10`")
+			c.mismatch(s.In, &List{c.fresh()}, t, assignment{}, "`for` goes over a List or a channel", "go over a List or a range, like `for n in 1..10`")
 		}
 		inner := newScope(sc)
 		if s.Var.Name != "_" {

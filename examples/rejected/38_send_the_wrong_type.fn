@@ -1,0 +1,2 @@
+let jobs = Chan[Int](1)
+jobs.send("one")

@@ -16,10 +16,10 @@ let adults = users
 let cfg = load("app.json") else Config.default()
 ```
 
-**Status: M3 in progress.** Fennic is a tree-walking interpreter with a
-type checker that runs before anything else: a program with a type error
-does not run. M3 is finishing the language described in
-[`docs/m0-spec.md`](docs/m0-spec.md). Expect it to change.
+**Status: M3.** Fennic is a tree-walking interpreter with a type checker
+that runs before anything else: a program with a type error does not run.
+All twenty programs of [`docs/m0-spec.md`](docs/m0-spec.md) run as
+written. Expect the language to change.
 
 ## Install
 
@@ -156,7 +156,7 @@ help: handle the failure first: `notes else ""` gives a fallback, and `notes!` p
 | Entry point | `fn main()` or `fn main(args: List[Str])` runs after the top level |
 | Pipelines | `xs \|> filter(x -> x > 0) \|> take(10)` |
 | Interfaces | satisfied structurally; methods are `fn Type.name(self, ...)` |
-| Concurrency | `together { xs \|> map_par(f) }!` runs tasks in a scope that cancels on failure |
+| Concurrency | `together { xs \|> map_par(f) }!` runs tasks in a scope that cancels on failure; `spawn fn() { ... }` starts one; `Chan[T](n)` carries values between them |
 | Tests | `test "name" { assert ... }` |
 
 The [`examples/`](examples) directory has runnable programs, one or more per
@@ -167,7 +167,8 @@ spec as written.
 Built-in functions: `print`, `len`, `first`, `last`, `sum`, `map`, `each`,
 `filter`, `sort_by`, `sort`, `reduce`, `take`, `map_par`, `env`, `lower`,
 `words`, `tally`, `top`, `group_by`, `map_values`, `sum_by`,
-`sort_by_value`, plus `fs.read`, `json.parse`, `csv.read`, `int.parse` and
+`sort_by_value`, `flatten`, `unique`, plus `fs.read`, `fs.write`,
+`fs.list`, `json.parse`, `json.encode`, `csv.read`, `int.parse` and
 `log.warn`. Lists have `.len()` and `.push(x)`; strings and maps have
 `.len()`. Backtick strings, `` `{"a": 1}` ``, have no
 escapes and no interpolation.

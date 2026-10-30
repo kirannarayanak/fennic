@@ -1,0 +1,38 @@
+// spawn starts a task inside together, which waits for all of them.
+// Channels carry values between tasks.
+fn main() {
+  let jobs = Chan[Int](10)
+  let results = Chan[Int](10)
+
+  together {
+    for _ in 1..3 {
+      spawn fn() {
+        for n in jobs {
+          results.send(n * n)
+        }
+      }
+    }
+    for n in 1..5 { jobs.send(n) }
+    jobs.close()
+  }
+
+  // Every task has finished here, so all five squares are waiting.
+  results.close()
+  var total = 0
+  for r in results {
+    total += r
+  }
+  print("sum of squares: {total}")
+
+  // One failing task cancels the rest. The second task would wait forever
+  // on a channel nobody closes; cancellation stops it.
+  let never = Chan[Int](1)
+  together {
+    spawn fn() { fail "task one gave up" }
+    spawn fn() {
+      for n in never {
+        print("{n}")
+      }
+    }
+  } else err -> { print("together failed: {err}") }
+}

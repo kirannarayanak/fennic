@@ -1,0 +1,5 @@
+type Shape =
+  | Circle(radius: Float)
+  | Square(side: Float)
+
+print(json.encode(Circle(1.0)))

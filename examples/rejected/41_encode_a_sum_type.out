@@ -1,0 +1,6 @@
+error: `json.encode` cannot encode a Shape: sum types have no JSON form
+ --> 41_encode_a_sum_type.fn:5:19
+  |
+5 | print(json.encode(Circle(1.0)))
+  |                   ^^^^^^^^^^^
+help: encode records, lists, maps with Str keys, and plain values

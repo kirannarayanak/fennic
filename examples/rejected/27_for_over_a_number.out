@@ -1,4 +1,4 @@
-error: `for` goes over a List, but this is an Int
+error: `for` goes over a List or a channel, but this is an Int
  --> 27_for_over_a_number.fn:1:10
   |
 1 | for n in 10 {

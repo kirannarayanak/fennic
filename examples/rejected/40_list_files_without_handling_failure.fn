@@ -1,0 +1,3 @@
+for f in fs.list("data", "*.csv") {
+  print(f)
+}

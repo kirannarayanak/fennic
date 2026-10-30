@@ -1,0 +1,10 @@
+fn main() {
+  let bodies = together {
+    paths |> map_par(p -> fs.read(p)!)
+  }!
+  print("read {bodies.len()} pages")
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 18 uses `paths` without declaring it. The pages sit beside this file.
+let paths = ["pages/a.txt", "pages/b.txt", "pages/c.txt"]

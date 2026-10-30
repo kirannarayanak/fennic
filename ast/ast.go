@@ -307,6 +307,12 @@ type IfExpr struct {
 	Else Expr
 }
 
+// SpawnExpr is `spawn f`: start f as a task in the enclosing `together`.
+type SpawnExpr struct {
+	Span
+	Fn Expr
+}
+
 // FailExpr is `fail "message"`.
 type FailExpr struct {
 	Span
@@ -507,6 +513,7 @@ func (*TupleLit) expr()      {}
 func (*MapLit) expr()        {}
 func (*IfExpr) expr()        {}
 func (*FailExpr) expr()      {}
+func (*SpawnExpr) expr()     {}
 func (*FuncLit) expr()       {}
 func (*WithExpr) expr()      {}
 func (*LambdaExpr) expr()    {}

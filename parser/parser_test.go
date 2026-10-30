@@ -400,3 +400,13 @@ func TestMaps(t *testing.T) {
 		{"Map type", "fn f(m: Map[Str, Int]) { }", `(fn f ((m Map[Str, Int])) (block))`},
 	})
 }
+
+func TestConcurrencySyntax(t *testing.T) {
+	runParseCases(t, []parseCase{
+		{"spawn", "together {\n  spawn fn() { work() }\n}", `(together (block (spawn (fn () (block (call work))))))`},
+		{"channel", `let jobs = Chan[Str](100)`, `(let jobs (call Chan[Str] 100))`},
+		{"send and close", "jobs.send(x)\njobs.close()", "(call (. jobs send) x)\n(call (. jobs close))"},
+		{"for over a channel", "for job in jobs { do(job) }", `(for job jobs (block (call do job)))`},
+		{"pipe after together", "let r = together { a }! |> flatten()", `(let r (|> (! (together (block a))) (call flatten)))`},
+	})
+}

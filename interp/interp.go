@@ -66,6 +66,7 @@ type task struct {
 	ctx      context.Context
 	cancel   context.CancelFunc // cancels the enclosing `together` scope
 	together bool               // inside a `together` block, so map_par may spawn
+	group    *group             // the tasks of the enclosing `together`
 }
 
 // callSite is what a builtin needs to report errors and to spawn tasks.

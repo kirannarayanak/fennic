@@ -1,0 +1,14 @@
+{
+  "west": {
+    "total": 115.0,
+    "days": 2
+  },
+  "north": {
+    "total": 7.25,
+    "days": 1
+  },
+  "east": {
+    "total": 75.5,
+    "days": 2
+  }
+}

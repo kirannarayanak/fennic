@@ -1,7 +1,6 @@
 package interp
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -51,7 +50,21 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		env.Assign(s.Name.Name, m.(*Map).with(k, v))
 		return Unit
 	case *ast.ForStmt:
-		items, ok := in.eval(s.In, env, t).(*List)
+		over := in.eval(s.In, env, t)
+		if ch, isChan := over.(*Channel); isChan {
+			for {
+				item, ok := ch.receive(t.ctx)
+				if !ok {
+					return Unit
+				}
+				scope := NewEnv(env)
+				if s.Var.Name != "_" {
+					scope.Define(s.Var.Name, item, false)
+				}
+				in.evalBlock(s.Body, scope, t)
+			}
+		}
+		items, ok := over.(*List)
 		if !ok {
 			in.fail(s.In, "", "`for` goes over a List")
 		}
@@ -188,6 +201,8 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 			return Unit
 		}
 		return in.eval(e.Else, env, t)
+	case *ast.SpawnExpr:
+		return in.spawn(e, in.eval(e.Fn, env, t), t)
 	case *ast.FailExpr:
 		msg := Display(in.eval(e.Msg, env, t))
 		panic(&propagation{failure: &Failure{Msg: msg}, at: e})
@@ -390,24 +405,6 @@ func (in *Interp) matchAll(ps []ast.Pattern, vs []Value, scope *Env, t *task) bo
 	return true
 }
 
-// evalTogether runs a block as a structured scope. Its result is a failure
-// if the block failed, which `!` or `else` then handle.
-func (in *Interp) evalTogether(e *ast.TogetherExpr, env *Env, t *task) (result Value) {
-	ctx, cancel := context.WithCancel(t.ctx)
-	defer cancel()
-	inner := &task{ctx: ctx, cancel: cancel, together: true}
-	defer func() {
-		if r := recover(); r != nil {
-			p, ok := r.(*propagation)
-			if !ok {
-				panic(r)
-			}
-			result = p.failure
-		}
-	}()
-	return in.evalBlock(e.Body, env, inner)
-}
-
 func (in *Interp) evalBinary(e *ast.BinaryExpr, env *Env, t *task) Value {
 	switch e.Op {
 	case token.QQ:
@@ -543,7 +540,7 @@ func equal(a, b Value) bool {
 			}
 		}
 		return true
-	case Order:
+	case Order, Date:
 		return a == b
 	case *Tuple:
 		y, ok := b.(*Tuple)

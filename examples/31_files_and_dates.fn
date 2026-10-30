@@ -1,0 +1,20 @@
+// fs.list finds files; csv.read reads Date columns written YYYY-MM-DD.
+type Visit {
+  day: Date
+  who: Str
+}
+
+fn main() {
+  let files = fs.list("data/visits", "*.csv")!
+  print(files)
+
+  let visits = together {
+    files |> map_par(f -> csv.read[Visit](f)!)
+  }! |> flatten()
+  let days = visits |> map(v -> v.day) |> unique()
+  print("{visits.len()} visits on {days.len()} days: {days}")
+  print(json.encode(visits |> map(v -> v.who) |> unique()))
+
+  let nothing = fs.list("data/nowhere", "*.csv") else err -> { print("{err}"); [] }
+  print("{nothing.len()} files")
+}

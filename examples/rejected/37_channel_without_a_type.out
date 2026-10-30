@@ -1,0 +1,6 @@
+error: cannot tell what type of value this channel carries
+ --> 37_channel_without_a_type.fn:1:12
+  |
+1 | let jobs = Chan(10)
+  |            ^^^^^^^^
+help: name what it carries: `Chan[Str](100)`
