@@ -46,6 +46,7 @@ M1 is done when every program here runs and its output matches the file beside i
 | `spawn`, channels, cancellation | 30 |
 | `fs.list`, `Date`, `flatten`, `unique`, `json.encode` | 31 |
 | `to_float`, `to_int` | 32 |
+| `split`, `join`, `contains`, `starts_with`, `trim`, `pad_start`, `pad_end` | 33 |
 
 Line-1 directives may also be `// expect: args a b` (command-line
 arguments) or `// expect: env NAME=value`. `examples/m0/` holds the

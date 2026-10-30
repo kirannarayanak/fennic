@@ -397,3 +397,20 @@ func TestConversionsRuntime(t *testing.T) {
 		{"to_int beyond the Int range fails", `print(to_int(10000000000000000000.0) else e -> { print("{e}"); 0 })`, "10000000000000000000.0 has no Int value\n0"},
 	})
 }
+
+func TestStringsRuntime(t *testing.T) {
+	runCases(t, []runCase{
+		{"split", `print("{"a,b,,c" |> split(",")}")`, `["a", "b", "", "c"]`},
+		{"split into characters", `print("{"héllo" |> split("")}")`, `["h", "é", "l", "l", "o"]`},
+		{"split without the separator", `print("{"abc" |> split(",")}")`, `["abc"]`},
+		{"join", `print(join(["a", "b", "c"], ", "))`, "a, b, c"},
+		{"join of nothing", `print("[{join([], ",")}]")`, "[]"},
+		{"contains and starts_with", `print("{contains("warehouse", "house")} {contains("a", "")} {starts_with("prod.x", "prod.")} {starts_with("x", "xy")}")`, "true true true false"},
+		{"trim", "print(\"[{trim(\"\\t a b \\n\")}]\")", "[a b]"},
+		{"pad counts characters", `print("[{pad_start("é", 3)}] [{pad_end("é", 3, "-")}]")`, "[  é] [é--]"},
+		{"pad never cuts", `print(pad_start("abcdef", 3))`, "abcdef"},
+	})
+	errCases(t, []errCase{
+		{"pad fill from a variable", "let f = \"ab\"\nprint(pad_start(\"x\", 4, f))", `padding fills with one character, but was given "ab"`, "fill with exactly one character, like `\" \"` or `\"0\"`"},
+	})
+}

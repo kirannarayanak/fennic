@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/kirannarayanak/fennic/ast"
 )
@@ -280,6 +281,11 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		"flatten": 1, "unique": 1, "json.encode": 1, "fs.list": 2, "fs.write": 2,
 		"to_float": 1, "to_int": 1,
 		"map": 2, "each": 2, "filter": 2, "sort_by": 2, "take": 2, "map_par": 2, "reduce": 2,
+		"split": 2, "join": 2, "contains": 2, "starts_with": 2, "trim": 1,
+		"pad_start": 2, "pad_end": 2,
+	}
+	if (name == "pad_start" || name == "pad_end") && len(args) == 3 {
+		arity[name] = 3 // with a fill character
 	}
 	if name == "first" {
 		arity["first"] = 1
@@ -323,6 +329,45 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 	case "int.parse":
 		strArg(0)
 		return &Fail{Int}
+	case "split", "contains", "starts_with":
+		strArg(0)
+		got := c.expr(args[1], sc, x, Str)
+		if a := c.assign(Str, got); !a.ok {
+			c.mismatch(args[1], Str, got, a, "`"+name+"` needs a Str", "pass a Str")
+		}
+		if name == "split" {
+			return &List{Str}
+		}
+		return Bool
+	case "join":
+		elem := c.listArg(name, args[0], sc, x)
+		if a := c.assign(Str, elem); !a.ok && !isBad(elem) {
+			c.errorf(args[0], "turn each element into a Str first, like `xs |> map(x -> \"{x}\") |> join(\", \")`",
+				"`join` joins Strs, but this list holds %s", plural(elem))
+		}
+		got := c.expr(args[1], sc, x, Str)
+		if a := c.assign(Str, got); !a.ok {
+			c.mismatch(args[1], Str, got, a, "`join` needs a Str separator", "pass a Str")
+		}
+		return Str
+	case "trim":
+		strArg(0)
+		return Str
+	case "pad_start", "pad_end":
+		strArg(0)
+		got := c.expr(args[1], sc, x, Int)
+		if a := c.assign(Int, got); !a.ok {
+			c.mismatch(args[1], Int, got, a, "`"+name+"` needs an Int width", "pass the width in characters, like `"+name+"(s, 10)`")
+		}
+		if len(args) == 3 {
+			fill := c.expr(args[2], sc, x, Str)
+			if a := c.assign(Str, fill); !a.ok {
+				c.mismatch(args[2], Str, fill, a, "`"+name+"` needs a one-character Str to fill with", "pass a Str, like `\"0\"`")
+			} else if lit, ok := args[2].(*ast.StrLit); ok && utf8.RuneCountInString(lit.Value) != 1 {
+				c.errorf(args[2], "fill with exactly one character, like `\" \"` or `\"0\"`", "`%s` fills with one character, but this is %d", name, utf8.RuneCountInString(lit.Value))
+			}
+		}
+		return Str
 	case "to_float", "to_int":
 		from, to := Int, Float
 		if name == "to_int" {

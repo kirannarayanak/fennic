@@ -432,3 +432,14 @@ func TestConversions(t *testing.T) {
 		{"int added to a float var", "var total = 0.0\nlet n = 2\ntotal += n", "`total` holds a Float, so it cannot have an Int added to it | convert it with `to_float(n)`; Fennic never converts numbers for you"},
 	})
 }
+
+func TestStringFunctions(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"all of them", "let parts = \" a.b \" |> trim() |> split(\".\")\nlet s = join(parts, \"-\")\nlet b = contains(s, \"a\") and starts_with(s, \"a\")\nlet p = pad_start(s, 6) |> pad_end(8, \".\")", ""},
+		{"join needs Strs", "let s = join([1, 2], \",\")", "`join` joins Strs, but this list holds Ints | turn each element into a Str first, like `xs |> map(x -> \"{x}\") |> join(\", \")`"},
+		{"split needs a Str separator", "let p = split(\"a\", 1)", "`split` needs a Str, but this is an Int | to turn a value into a Str, interpolate it: \"{1}\""},
+		{"pad width", "let p = pad_start(\"a\", \"10\")", "`pad_start` needs an Int width, but this is a Str | pass the width in characters, like `pad_start(s, 10)`"},
+		{"pad fill of one character", "let p = pad_end(\"a\", 4, \"ab\")", "`pad_end` fills with one character, but this is 2 | fill with exactly one character, like `\" \"` or `\"0\"`"},
+		{"a user function of the same name wins", "fn contains(xs: List[Str], x: Str) -> Bool { first(xs, y -> y == x) != none }\nlet b = contains([\"a\"], \"a\")", ""},
+	})
+}

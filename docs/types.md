@@ -187,6 +187,14 @@ fs.list(Str, Str) -> List[Str]!                files in a directory matching a p
 fs.write(Str, Str) -> nothing!
 Chan[T](Int) -> Chan[T]
 int.parse(Str) -> Int!
+split(Str, Str) -> List[Str]                   an empty separator splits into characters
+join(List[Str], Str) -> Str
+contains(Str, Str) -> Bool
+starts_with(Str, Str) -> Bool
+trim(Str) -> Str                               whitespace at both ends
+pad_start(Str, Int) -> Str                     pad to a width in characters; never cuts
+pad_start(Str, Int, Str) -> Str                ...with a one-character fill
+pad_end(Str, Int) -> Str                       likewise, at the end
 to_float(Int) -> Float
 to_int(Float) -> Int!                          truncates toward zero
 fs.read(Str) -> Str!

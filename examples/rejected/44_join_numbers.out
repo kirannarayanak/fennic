@@ -1,0 +1,6 @@
+error: `join` joins Strs, but this list holds Ints
+ --> 44_join_numbers.fn:2:12
+  |
+2 | print(join(ports, ", "))
+  |            ^^^^^
+help: turn each element into a Str first, like `xs |> map(x -> "{x}") |> join(", ")`

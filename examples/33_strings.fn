@@ -1,0 +1,15 @@
+// split, join, contains, starts_with, trim, pad_start and pad_end.
+let line = "  prod.orders.v2  "
+let parts = line |> trim() |> split(".")
+print(parts)
+print(join(parts, "/"))
+print("{contains(line, "orders")} {starts_with(trim(line), "prod.")}")
+
+// pad_start and pad_end line up columns. Width counts characters.
+let rows = [("revenue", 982341), ("refunds", 1203), ("sessions", 12)]
+for row in rows {
+  match row {
+    (name, n) -> print("{pad_end(name, 10)}{pad_start("{n}", 8)}")
+  }
+}
+print(pad_start("7", 3, "0"))

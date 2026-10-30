@@ -136,6 +136,8 @@ var builtins = map[string]bool{
 	"lower": true, "words": true, "tally": true, "top": true, "group_by": true,
 	"map_values": true, "sum_by": true, "sort_by_value": true,
 	"flatten": true, "unique": true, "to_float": true, "to_int": true,
+	"split": true, "join": true, "contains": true, "starts_with": true, "trim": true,
+	"pad_start": true, "pad_end": true,
 }
 
 var modules = map[string]bool{"fs": true, "json": true, "log": true, "int": true, "csv": true}

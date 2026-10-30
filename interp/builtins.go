@@ -189,6 +189,32 @@ func (in *Interp) prelude() *Env {
 		}
 		return &Channel{ch: make(chan Value, n)}
 	})
+	def("split", func(in *Interp, c *callSite, args []Value) Value {
+		// An empty separator splits into characters.
+		out := &List{}
+		for _, part := range strings.Split(args[0].(string), args[1].(string)) {
+			out.Elems = append(out.Elems, part)
+		}
+		return out
+	})
+	def("join", func(in *Interp, c *callSite, args []Value) Value {
+		parts := make([]string, 0, len(args[0].(*List).Elems))
+		for _, e := range args[0].(*List).Elems {
+			parts = append(parts, e.(string))
+		}
+		return strings.Join(parts, args[1].(string))
+	})
+	def("contains", func(in *Interp, c *callSite, args []Value) Value {
+		return strings.Contains(args[0].(string), args[1].(string))
+	})
+	def("starts_with", func(in *Interp, c *callSite, args []Value) Value {
+		return strings.HasPrefix(args[0].(string), args[1].(string))
+	})
+	def("trim", func(in *Interp, c *callSite, args []Value) Value {
+		return strings.TrimSpace(args[0].(string))
+	})
+	def("pad_start", func(in *Interp, c *callSite, args []Value) Value { return in.pad(c, args, true) })
+	def("pad_end", func(in *Interp, c *callSite, args []Value) Value { return in.pad(c, args, false) })
 	def("to_float", func(in *Interp, c *callSite, args []Value) Value {
 		return float64(args[0].(int64))
 	})
@@ -595,4 +621,26 @@ func builtinWrite(in *Interp, c *callSite, args []Value) Value {
 		return &Failure{Msg: strings.Replace(readFailure(path, err), "cannot read", "cannot write", 1)}
 	}
 	return Unit
+}
+
+// pad fills a Str to a width in characters, at the start or the end. A Str
+// already that wide or wider is returned whole. Padding works on any Str,
+// so a number formatted some other way pads the same.
+func (in *Interp) pad(c *callSite, args []Value, start bool) Value {
+	s, width := args[0].(string), int(args[1].(int64))
+	fill := " "
+	if len(args) == 3 {
+		fill = args[2].(string)
+		if utf8.RuneCountInString(fill) != 1 {
+			in.fail(c.node, "fill with exactly one character, like `\" \"` or `\"0\"`", "padding fills with one character, but was given %s", show(fill))
+		}
+	}
+	n := width - utf8.RuneCountInString(s)
+	if n <= 0 {
+		return s
+	}
+	if start {
+		return strings.Repeat(fill, n) + s
+	}
+	return s + strings.Repeat(fill, n)
 }
