@@ -1,5 +1,6 @@
-// Connector config audit: read every connector JSON file in a folder and
-// report the ones that break the naming, topic and snapshot rules.
+// Connector config audit: read every Kafka Connect connector JSON file in a
+// folder and report the ones that break the naming, file, topic and
+// snapshot rules. Exits with 1 if there are any, so CI fails.
 //
 //   fennic run audit.fn connectors
 //
@@ -8,23 +9,15 @@
 //             hyphens, the kind being cdc for a source connector and sink
 //             for a sink
 //   file      the file is named after the connector: <name>.json
-//   prefix    a source connector's topic_prefix is <env>.<entity>, where env
-//             is prod, staging or dev and entity is the name's middle word
-//   snapshot  a source connector sets snapshot_mode to initial or no_data
-//
-// NOTE: real Kafka Connect configs spell the keys connector.class,
-// topic.prefix and snapshot.mode. Fennic cannot read a key with a dot into
-// a record field, so these samples use underscores. See RECORD.md.
+//   prefix    a source connector's topic.prefix is <env>.<entity>, where
+//             env is prod, staging or dev and entity is the name's middle
+//             word
+//   snapshot  a source connector sets snapshot.mode to initial or no_data
 
-type Config {
-  connector_class: Str
-  topic_prefix: Str?
-  snapshot_mode: Str?
-}
-
+// The config's keys contain dots, so it is read as a map of strings.
 type Connector {
   name: Str
-  config: Config
+  config: Map[Str, Str]
 }
 
 type Violation {
@@ -38,43 +31,39 @@ type Kind =
   | Sink
   | Unknown
 
-// Connector classes by kind. A list, because there is no way to ask whether
-// a class name contains "debezium" or ends with "SinkConnector".
-let sources = [
-  "io.debezium.connector.postgresql.PostgresConnector",
-  "io.debezium.connector.mysql.MySqlConnector",
-]
-let sinks = ["io.confluent.connect.s3.S3SinkConnector"]
 let envs = ["prod", "staging", "dev"]
 let snapshot_modes = ["initial", "no_data"]
 
-fn contains(xs: List[Str], x: Str) -> Bool {
+// Whether a list holds a value. The language has `contains` for text only.
+fn member(xs: List[Str], x: Str) -> Bool {
   first(xs, y -> y == x) != none
 }
 
 fn kind(class: Str) -> Kind {
-  if contains(sources, class) { Source } else if contains(sinks, class) { Sink } else { Unknown }
+  if contains(class, ".debezium.") {
+    Source
+  } else if contains(class, "SinkConnector") {
+    Sink
+  } else {
+    Unknown
+  }
 }
 
-fn joined(parts: List[Str], sep: Str) -> Str {
-  parts |> reduce((a, b) -> "{a}{sep}{b}") ?? ""
-}
-
-fn check(dir: Str, file: Str, c: Connector) -> List[Violation] {
+fn check(file: Str, c: Connector) -> List[Violation] {
   var found = []
-  let parts = words(c.name)
-  let k = kind(c.config.connector_class)
-  let well_named = lower(c.name) == c.name and joined(parts, "-") == c.name and parts.len() == 3
+  let parts = split(c.name, "-")
+  let class = c.config["connector.class"] ?? ""
+  let lowercase_words = (parts |> filter(p -> p == "" or lower(p) != p)).len() == 0
+  let well_named = parts.len() == 3 and lowercase_words
 
   if not well_named {
     found.push(Violation { file: file, rule: "name", detail: "`{c.name}` is not <system>-<entity>-<kind> in lowercase" })
   }
-  // fs.list gives "<dir>/<file>", so the expected path is built the same way.
-  if file != "{dir}/{c.name}.json" {
+  if last(split(file, "/")) != "{c.name}.json" {
     found.push(Violation { file: file, rule: "file", detail: "should be named {c.name}.json" })
   }
-  match k {
-    Unknown -> found.push(Violation { file: file, rule: "class", detail: "unknown connector class {c.config.connector_class}" })
+  match kind(class) {
+    Unknown -> found.push(Violation { file: file, rule: "class", detail: "not a known source or sink connector: {class}" })
     Source -> {
       if last(parts) != "cdc" {
         found.push(Violation { file: file, rule: "name", detail: "a source connector's name ends in -cdc" })
@@ -82,15 +71,15 @@ fn check(dir: Str, file: Str, c: Connector) -> List[Violation] {
       // The prefix rule names the entity, so it needs a well-formed name.
       if well_named {
         let entity = parts[1] ?? ""
-        let prefix = c.config.topic_prefix ?? ""
-        let env = words(prefix)[0] ?? ""
-        if not contains(envs, env) or prefix != "{env}.{entity}" {
-          found.push(Violation { file: file, rule: "prefix", detail: "topic_prefix `{prefix}` should be <env>.{entity}, env one of {joined(envs, ", ")}" })
+        let prefix = c.config["topic.prefix"] ?? ""
+        let env = split(prefix, ".")[0] ?? ""
+        if not member(envs, env) or prefix != "{env}.{entity}" {
+          found.push(Violation { file: file, rule: "prefix", detail: "topic.prefix `{prefix}` should be <env>.{entity}, env one of {join(envs, ", ")}" })
         }
       }
-      let mode = c.config.snapshot_mode ?? "(not set)"
-      if not contains(snapshot_modes, mode) {
-        found.push(Violation { file: file, rule: "snapshot", detail: "snapshot_mode {mode} is not one of {joined(snapshot_modes, ", ")}" })
+      let mode = c.config["snapshot.mode"] ?? "(not set)"
+      if not member(snapshot_modes, mode) {
+        found.push(Violation { file: file, rule: "snapshot", detail: "snapshot.mode {mode} is not one of {join(snapshot_modes, ", ")}" })
       }
     }
     Sink -> {
@@ -106,20 +95,21 @@ fn parse(text: Str) -> Connector! {
   json.parse(text)
 }
 
-fn check_file(dir: Str, file: Str) -> List[Violation]! {
+fn check_file(file: Str) -> List[Violation]! {
   let c = parse(fs.read(file)!)!
-  check(dir, file, c)
+  check(file, c)
 }
 
 // A file that cannot be read or parsed is itself a violation.
-fn audit(dir: Str, file: Str) -> List[Violation] {
-  check_file(dir, file) else err -> [Violation { file: file, rule: "json", detail: "{err}" }]
+fn audit(file: Str) -> List[Violation] {
+  check_file(file) else err -> [Violation { file: file, rule: "json", detail: "{err}" }]
 }
 
-fn main(args: List[Str]) {
+fn main(args: List[Str]) -> Int {
   let dir = args[0] ?? "connectors"
   let files = fs.list(dir, "*.json")!
-  let violations = files |> map(f -> audit(dir, f)) |> flatten()
-  violations |> each(v -> print("{v.file}\t{v.rule}\t{v.detail}"))
+  let violations = files |> map(f -> audit(f)) |> flatten()
+  violations |> each(v -> print("{pad_end(last(split(v.file, "/")) ?? v.file, 20)}{pad_end(v.rule, 10)}{v.detail}"))
   print("{files.len()} connectors, {violations.len()} violations")
+  if violations.len() > 0 { 1 } else { 0 }
 }

@@ -1,8 +1,8 @@
 {
   "name": "pg-users-cdc",
   "config": {
-    "connector_class": "io.debezium.connector.postgresql.PostgresConnector",
-    "topic_prefix": "staging.users",
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "topic.prefix": "staging.users",
     "database.hostname": "users-db.internal"
   }
 }

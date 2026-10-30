@@ -1,9 +1,9 @@
 {
   "name": "pg-orders-cdc",
   "config": {
-    "connector_class": "io.debezium.connector.postgresql.PostgresConnector",
-    "topic_prefix": "prod.orders",
-    "snapshot_mode": "initial",
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "topic.prefix": "prod.orders",
+    "snapshot.mode": "initial",
     "database.hostname": "orders-db.internal",
     "table.include.list": "public.orders,public.order_items"
   }

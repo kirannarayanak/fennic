@@ -1,5 +1,6 @@
 // Schema drift: compare two column dumps, from two clusters, and report the
-// columns added, removed and changed in type.
+// columns added, removed and changed in type. Exits with 1 if there is any
+// drift, so CI fails.
 //
 //   fennic run drift.fn cluster_a.csv cluster_b.csv
 //
@@ -37,19 +38,17 @@ fn key(c: Column) -> Str {
   "{c.table_name}.{c.column_name}"
 }
 
-fn joined(parts: List[Str], sep: Str) -> Str {
-  parts |> reduce((a, b) -> "{a}{sep}{b}") ?? ""
-}
-
-// varchar(255) -> character varying(255). The base name is the first word
-// and the rest are its parameters. words() splits on any non-letter, so a
-// two-word type such as "double precision" is read as base "double".
+// varchar(255) -> character varying(255): the base name is everything
+// before "(", and the parameters inside the parentheses are kept, without
+// spaces, so numeric(12,2) and numeric(12, 2) are the same type.
 fn normalise(t: Str) -> Str {
-  let parts = lower(t) |> words()
-  let base = parts[0] ?? ""
+  let parts = lower(t) |> trim() |> split("(")
+  let base = trim(parts[0] ?? "")
   let canonical = aliases[base] ?? base
-  let params = parts |> filter(p -> p != base)
-  if params.len() == 0 { canonical } else { "{canonical}({joined(params, ",")})" }
+  match parts {
+    [_, params] -> "{canonical}({params |> split(")") |> join("") |> split(" ") |> join("")})"
+    _ -> canonical
+  }
 }
 
 fn index(cols: List[Column]) -> Map[Str, Column] {
@@ -62,9 +61,9 @@ fn index(cols: List[Column]) -> Map[Str, Column] {
 
 fn describe(ch: Change) -> Str {
   match ch {
-    Added(c) -> "+ {key(c)}\t{c.data_type}"
-    Removed(c) -> "- {key(c)}\t{c.data_type}"
-    Retyped(before, after) -> "~ {key(after)}\t{before.data_type} -> {after.data_type}"
+    Added(c) -> "+ {pad_end(key(c), 24)}{c.data_type}"
+    Removed(c) -> "- {pad_end(key(c), 24)}{c.data_type}"
+    Retyped(before, after) -> "~ {pad_end(key(after), 24)}{before.data_type} -> {after.data_type}"
   }
 }
 
@@ -76,7 +75,7 @@ fn table_of(ch: Change) -> Str {
   }
 }
 
-fn main(args: List[Str]) {
+fn main(args: List[Str]) -> Int {
   let a = csv.read[Column](args[0] ?? "cluster_a.csv")!
   let b = csv.read[Column](args[1] ?? "cluster_b.csv")!
   let in_a = index(a)
@@ -112,4 +111,5 @@ fn main(args: List[Str]) {
     print("  {describe(ch)}")
   }
   print("{changes.len()} changes")
+  if changes.len() > 0 { 1 } else { 0 }
 }

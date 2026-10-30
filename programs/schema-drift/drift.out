@@ -1,10 +1,10 @@
 customers
-  - customers.signup_source	text
+  - customers.signup_source text
 orders
-  + orders.channel	varchar(32)
-  ~ orders.total	numeric(12,2) -> numeric(14,2)
-  ~ orders.status	varchar(20) -> text
-  ~ orders.created_at	timestamp -> timestamptz
+  + orders.channel          varchar(32)
+  ~ orders.total            numeric(12,2) -> numeric(14,2)
+  ~ orders.status           varchar(20) -> text
+  ~ orders.created_at       timestamp -> timestamptz
 refunds
-  + refunds.reason	text
+  + refunds.reason          text
 6 changes

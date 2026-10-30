@@ -179,3 +179,50 @@ out.
 **Bug found:** `json.parse` into a `Map` passes the type checker and fails
 at run time (program 2, entry 2). It's not a feature question; the checker
 and the runtime must agree, one way or the other.
+
+## Round two: what the fixes removed
+
+M3 round two fixed three defects and added the two features with three
+programs behind them. The programs were rewritten to drop the workarounds
+those changes made unnecessary. The entries above are kept as they were
+written, as evidence.
+
+| Change | Entries it resolved |
+| --- | --- |
+| `json.parse` reads a JSON object into `Map[Str, V]` (a bug fix) | audit 1, 2: the audit reads real dotted-key configs; its samples are back in the real format |
+| Paths resolve against the caller's working directory (a bug fix) | "Across all three": each program now runs from anywhere |
+| `to_float`, `to_int` (a defect: no conversion existed) | reconcile 13: whole numbers print without `.0` |
+| `split`, `join`, `contains`, `starts_with`, `trim`, `pad_start`, `pad_end` | reconcile 10, 12; audit 3, 4 (the class allow-list is gone), 6, 7, 10 (the path comparison no longer depends on how `fs.list` joins), 13; drift 4 (`float8` and `double precision` now compare equal), 9 |
+| `fn main() -> Int` as the exit status | reconcile 11; audit 11; drift 8 |
+
+Still standing, waiting for evidence or deferred:
+- **Number formatting (reconcile 6).** Deferred: the report still prints
+  `8.167938931297709%`.
+- **Narrowing an optional after a check, or a `none` pattern** (reconcile
+  5, drift 5).
+- **Walking a map by key, `.keys()`, sets, `to_map`** (reconcile 7, drift
+  1–3, 6).
+- **Function types** (reconcile 9, drift 7).
+- **`abs` and `max`** (reconcile 3, 4).
+- **Sorting descending** (reconcile 8).
+- **Early return, or matching on failure** (audit 9).
+- **Regular expressions** (audit 8).
+- **Membership in a list** (audit 5): `contains` is for text, so the audit
+  keeps its own `member`.
+- **Recursive directory walk** (audit 12).
+
+### New reaches while rewriting
+
+- **`ends_with`** (audit), to tell a sink connector by its class. It's not
+  in the list that passed the rule; `contains(class, "SinkConnector")`
+  stands in.
+- **`xs |> len() == 0`** (audit) does not parse, because `|>` binds more
+  loosely than `==`, and the error, "put each statement on its own line",
+  does not say why. Wrote `(xs |> filter(...)).len() == 0`. A message
+  for M4.
+- **Removing every space from a Str** (drift), so `numeric(12, 2)` and
+  `numeric(12,2)` normalise alike. Wrote `split(" ") |> join("")`; a
+  `replace` would say it directly.
+- **Destructuring a tuple in `for`,** `for (name, n) in rows`, when
+  writing `examples/33_strings.fn`. That's an example, not a real program,
+  so it doesn't count toward the rule.

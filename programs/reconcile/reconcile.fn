@@ -1,7 +1,8 @@
 // Pipeline reconciliation: compare a metric export from the source layer
 // with the same export from the warehouse layer, and print the metrics
 // whose values differ by more than 3%, largest first, then the metrics
-// that exist on only one side.
+// that exist on only one side. Exits with 1 if it printed any, so a
+// scheduler or CI notices.
 //
 //   fennic run reconcile.fn source.csv warehouse.csv
 //
@@ -36,6 +37,12 @@ fn relative_diff(a: Float, b: Float) -> Float {
   if base == 0.0 { 0.0 } else { abs(a - b) / base }
 }
 
+// A whole number shows without a decimal point, so counts read as counts.
+fn show(v: Float) -> Str {
+  let whole = to_int(v) else 0
+  if to_float(whole) == v { "{whole}" } else { "{v}" }
+}
+
 fn index(rows: List[Row]) -> Map[Str, Float] {
   var m = Map{}
   for r in rows {
@@ -44,7 +51,7 @@ fn index(rows: List[Row]) -> Map[Str, Float] {
   m
 }
 
-fn main(args: List[Str]) {
+fn main(args: List[Str]) -> Int {
   let source = csv.read[Row](args[0] ?? "source.csv")!
   let warehouse = csv.read[Row](args[1] ?? "warehouse.csv")!
   let src = index(source)
@@ -61,17 +68,18 @@ fn main(args: List[Str]) {
     }
   }
 
-  print("metric\tsource\twarehouse\tdiff")
+  print("{pad_end("metric", 20)}{pad_start("source", 14)}{pad_start("warehouse", 14)}  diff")
   mismatches
     |> sort_by(m -> -m.diff)
-    |> each(m -> print("{m.metric}\t{m.source}\t{m.warehouse}\t{m.diff * 100.0}%"))
+    |> each(m -> print("{pad_end(m.metric, 20)}{pad_start(show(m.source), 14)}{pad_start(show(m.warehouse), 14)}  {m.diff * 100.0}%"))
 
   let only_source = source |> filter(s -> wh[s.metric] == none) |> map(s -> s.metric)
   let only_warehouse = warehouse |> filter(w -> src[w.metric] == none) |> map(w -> w.metric)
   if only_source.len() > 0 {
-    print("only in source: {only_source}")
+    print("only in source: {join(only_source, ", ")}")
   }
   if only_warehouse.len() > 0 {
-    print("only in warehouse: {only_warehouse}")
+    print("only in warehouse: {join(only_warehouse, ", ")}")
   }
+  if mismatches.len() + only_source.len() + only_warehouse.len() > 0 { 1 } else { 0 }
 }

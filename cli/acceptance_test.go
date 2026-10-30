@@ -336,8 +336,9 @@ func TestPrograms(t *testing.T) {
 			}
 			t.Chdir(filepath.Dir(path)) // the sample inputs sit beside each program
 			var out bytes.Buffer
-			if code := Main(append([]string{"run", path}, c.args...), &out, &out); code != 0 {
-				t.Errorf("exit status %d", code)
+			// Each sample has something to report, so each exits with 1.
+			if code := Main(append([]string{"run", path}, c.args...), &out, &out); code != 1 {
+				t.Errorf("exit status %d, want 1", code)
 			}
 			if out.String() != string(want) {
 				t.Errorf("output differs\n--- got\n%s--- want\n%s", out.String(), want)

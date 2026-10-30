@@ -1,7 +1,7 @@
 {
   "name": "pg-inventory-cdc",
   "config": {
-    "connector_class": "io.debezium.connector.postgresql.PostgresConnector",
-    "topic_prefix": "prod.inventory",
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "topic.prefix": "prod.inventory",
   }
 }

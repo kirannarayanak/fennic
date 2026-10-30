@@ -13,9 +13,11 @@ one reached for and could not have is recorded in [RECORD.md](RECORD.md).
 Each directory holds sample inputs and the output for them, `*.out`, which
 `go test ./...` checks.
 
-The audit's sample connectors spell `connector_class`, `topic_prefix` and
-`snapshot_mode` with underscores, because Fennic cannot yet read the dotted
-keys of a real Kafka Connect config; `real-format/` shows the real shape.
-The audit's name rule is strict: a connector whose name is malformed is not
+Each program exits with 1 when it finds something to report, so a
+scheduler or CI can act on it.
+
+The audit reads real Kafka Connect configs, dotted keys and all.
+`real-format/` holds the shape the first version could not read; it is
+kept as evidence for the record. The audit's name rule is strict: a connector whose name is malformed is not
 also checked for its topic prefix, because the prefix rule needs the name's
 middle word.
