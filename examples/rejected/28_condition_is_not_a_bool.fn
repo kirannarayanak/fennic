@@ -1,0 +1,4 @@
+let names = ["Ada"]
+if names.len() {
+  print("someone is here")
+}

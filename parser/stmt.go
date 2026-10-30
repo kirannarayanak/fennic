@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/kirannarayanak/fennic/ast"
 	"github.com/kirannarayanak/fennic/token"
 )
@@ -17,7 +19,7 @@ func (p *parser) parseBlock() *ast.Block {
 	b := &ast.Block{}
 	p.skipNewlines()
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
-		if p.at(token.Fn) || p.at(token.Type) || p.at(token.Interface) || p.at(token.Test) {
+		if (p.at(token.Fn) && p.peek(1).Kind != token.LParen) || p.at(token.Type) || p.at(token.Interface) || p.at(token.Test) {
 			t := p.cur()
 			p.errorAt(t.Pos, t.End, "move it to the top level of the file", "`%s` declarations belong at the top level, not inside a block", t.Text)
 			p.parseItem() // parse it so its body does not derail the block, then drop it
@@ -53,12 +55,17 @@ func (p *parser) parseStmt() ast.Stmt {
 		s := &ast.AssertStmt{Cond: p.parseExpr()}
 		s.Span = p.span(start)
 		return s
-	case t.Kind == token.Ident && p.peek(1).Kind == token.Assign:
+	case t.Kind == token.Ident && (p.peek(1).Kind == token.Assign || p.peek(1).Kind == token.PlusEq):
 		name := p.ident("")
-		p.next() // =
-		s := &ast.AssignStmt{Name: name, Value: p.parseExpr()}
+		s := &ast.AssignStmt{Name: name}
+		if op := p.next(); op.Kind == token.PlusEq {
+			s.Op = token.PlusEq
+		}
+		s.Value = p.parseExpr()
 		s.Span = p.span(start)
 		return s
+	case t.Kind == token.For:
+		return p.parseFor()
 	case t.Kind == token.Ident && t.Text == "return":
 		p.errorAt(t.Pos, t.End, "the last expression of a block is its value; remove `return`", "Fennic has no `return`")
 		p.next()
@@ -68,4 +75,23 @@ func (p *parser) parseStmt() ast.Stmt {
 	}
 	x := p.parseExpr()
 	return &ast.ExprStmt{Span: p.span(start), X: x}
+}
+
+func (p *parser) parseFor() ast.Stmt {
+	start := p.next().Pos // for
+	f := &ast.ForStmt{Var: p.ident("name each value, like `for item in items { ... }`, or write `_`")}
+	p.expect(token.In, fmt.Sprintf("write `for %s in ...`", f.Var.Name))
+	saved := p.noRecord
+	p.noRecord = true
+	f.In = p.parseExpr()
+	p.noRecord = saved
+	if !p.at(token.LBrace) {
+		p.errorHere("write the loop body in braces: `for x in xs { ... }`", "expected `{` after the loop, found %s", p.found())
+		f.Body = &ast.Block{Span: p.span(p.cur().Pos)}
+		f.Span = p.span(start)
+		return f
+	}
+	f.Body = p.parseBlock()
+	f.Span = p.span(start)
+	return f
 }

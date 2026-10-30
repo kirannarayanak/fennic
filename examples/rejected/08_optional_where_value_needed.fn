@@ -3,5 +3,9 @@ type User {
   email: Str?
 }
 
+fn domain(address: Str) -> Str {
+  "{address}"
+}
+
 let bo = User { name: "Bo", email: none }
-print(bo.email)
+print(domain(bo.email))

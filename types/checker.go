@@ -132,6 +132,9 @@ func (c *checker) declare(file *ast.File) {
 		s := c.signature(d)
 		if d.Recv == nil {
 			c.funcs[d.Name.Name] = s
+			if s.isMain() {
+				c.checkMain(s)
+			}
 			continue
 		}
 		if _, known := c.named[d.Recv.Name]; !known {
@@ -380,7 +383,7 @@ func (c *checker) mismatch(n ast.Node, want, got Type, a assignment, lead, plain
 	switch g := prune(got).(type) {
 	case *Fail:
 		if c.assign(want, g.Elem).ok {
-			c.errorf(n, fmt.Sprintf("handle the failure first: `%s or %s` gives a fallback, and `%s!` passes it on", src, fallback(g.Elem), src),
+			c.errorf(n, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, fallback(g.Elem), src),
 				"%s, but this is %s, which might be a failure", lead, article(got))
 			return
 		}
@@ -543,10 +546,19 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 		t := c.expr(s.Value, sc, x, nil)
 		sc.vars[s.Name.Name] = &binding{t: t, mutable: s.Mutable}
 	case *ast.AssignStmt:
-		got := c.expr(s.Value, sc, x, nil)
 		b, ok := sc.lookup(s.Name.Name)
+		var want Type
+		if ok {
+			want = b.t
+		}
+		got := c.expr(s.Value, sc, x, want)
 		if !ok || !b.mutable {
 			return // the M1 check reports these
+		}
+		if s.Op != 0 {
+			// `x += e` is `x = x + e`.
+			c.arith(&ast.BinaryExpr{Span: s.Span, Op: token.Plus, Left: s.Name, Right: s.Value}, b.t, got)
+			return
 		}
 		if a := c.assign(b.t, got); !a.ok {
 			c.errorf(s.Value, fmt.Sprintf("keep `%s` %s, or give the %s its own name with `let`", s.Name.Name, article(b.t), String(got)),
@@ -559,6 +571,42 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 		}
 	case *ast.ExprStmt:
 		c.expr(s.X, sc, x, nil)
+	case *ast.ForStmt:
+		t := c.expr(s.In, sc, x, nil)
+		var elem Type = bad
+		switch l := prune(t).(type) {
+		case *List:
+			elem = l.Elem
+		case *Var:
+			elem = c.fresh()
+			unify(l, &List{elem})
+		case *Bad:
+		default:
+			c.mismatch(s.In, &List{c.fresh()}, t, assignment{}, "`for` goes over a List", "go over a List or a range, like `for n in 1..10`")
+		}
+		inner := newScope(sc)
+		if s.Var.Name != "_" {
+			inner.vars[s.Var.Name] = &binding{t: elem}
+		}
+		c.block(s.Body, inner, x, nil)
+	}
+}
+
+func (s *sig) isMain() bool { return s.name == "main" && s.decl.Recv == nil }
+
+// checkMain checks the signature of `fn main`: no arguments or
+// `args: List[Str]`, and no result.
+func (c *checker) checkMain(s *sig) {
+	d := s.decl
+	if len(s.params) > 1 || (len(s.params) == 1 && !unify(s.params[0].Type, &List{Str})) {
+		c.errorf(d.Name, "write `fn main()`, or `fn main(args: List[Str])` to receive the command-line arguments",
+			"`main` takes no arguments, or the command-line arguments as a List[Str]")
+	}
+	if len(d.TypeParams) > 0 {
+		c.errorf(d.Name, "remove the type parameters", "`main` cannot be generic")
+	}
+	if d.Result != nil {
+		c.errorf(d.Result, "remove the result type; use `!` or `fail` inside main to stop with a failure", "`main` returns nothing")
 	}
 }
 

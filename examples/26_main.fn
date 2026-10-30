@@ -1,0 +1,13 @@
+// expect: args 3 four
+// fn main runs after the top level, with the command-line arguments.
+fn main(args: List[Str]) {
+  print("got {args.len()} arguments")
+  for a in args {
+    let n = int.parse(a) else err -> { print("skipping: {err}"); 0 }
+    print("{a} -> {n}")
+  }
+  let home = env("FENNIC_EXAMPLE_UNSET") ?? "not set"
+  print("FENNIC_EXAMPLE_UNSET is {home}")
+}
+
+print("the top level runs first")

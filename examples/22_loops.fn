@@ -1,0 +1,24 @@
+// for goes over a List or a range. a..b includes both ends.
+var total = 0
+for n in 1..10 {
+  total += n
+}
+print("1 + ... + 10 = {total}")
+
+var squares = []
+for n in [3, 1, 2] {
+  squares.push(n * n)
+}
+print("squares: {squares}, {squares.len()} of them")
+
+var count = 0
+for _ in 1..3 {
+  count += 1
+}
+print("ran {count} times")
+
+// Indexing gives an optional, because the index may be out of range.
+let names = ["Ada", "Bo"]
+print("first: {names[0] ?? "nobody"}")
+print("third: {names[2] ?? "nobody"}")
+print("length of a word: {"fennic".len()}")

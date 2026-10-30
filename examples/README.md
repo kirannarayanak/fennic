@@ -26,7 +26,7 @@ M1 is done when every program here runs and its output matches the file beside i
 | `with` copy-with-change | 09, 17, 19 |
 | sum types and `match` | 11 |
 | `T!`, `!` propagation | 12, 13 |
-| `or` default, `or err -> { ...; ... }` | 13, 14, 18 |
+| `else` default, `else err -> { ...; ... }` | 13, 14, 18 |
 | `??`, `?.` | 10, 15 |
 | generics `[T: Ord]`, `[T]` | 15 |
 | `interface`, structural methods `fn Type.method(self, ...)` | 16, 17 |
@@ -34,6 +34,16 @@ M1 is done when every program here runs and its output matches the file beside i
 | `together`, `map_par` | 18 |
 | `test` and `assert` | 19 |
 | error messages that name the fix | 12, 20 |
+| `if`/`else` expressions, `and`, `or`, `not` | 21, 23 |
+| `for ... in`, ranges `a..b`, `_`, `+=`, `.push`, `.len()`, indexing | 22 |
+| `fail` | 23 |
+| patterns: variants without fields, literals, tuples, lists, `_` | 24 |
+| lambdas of several values, `reduce`, `sort`, `first(pred)`, `fn() { }`, type arguments, backtick strings | 25 |
+| `fn main(args)`, `env`, `int.parse` | 26 |
+
+Line-1 directives may also be `// expect: args a b` (command-line
+arguments) or `// expect: env NAME=value`. `examples/m0/` holds the
+programs of `docs/m0-spec.md`; see its README.
 
 ## Rejected programs (M2)
 

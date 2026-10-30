@@ -18,8 +18,8 @@ let cfg = load("data/app.json")!
 print("loaded {cfg.name}")
 print("port: {port_of("data/app.json")!}")
 
-let missing = port_of("data/missing.json") or err -> { print("could not load: {err}"); -1 }
+let missing = port_of("data/missing.json") else err -> { print("could not load: {err}"); -1 }
 print("missing port: {missing}")
 
-let broken = port_of("data/broken.json") or err -> { print("could not load: {err}"); -1 }
+let broken = port_of("data/broken.json") else err -> { print("could not load: {err}"); -1 }
 print("broken port: {broken}")

@@ -59,7 +59,7 @@ func TestOperators(t *testing.T) {
 		{"parentheses", `(a + b) * c`, `(* (+ a b) c)`},
 		{"coalesce right associative", `a ?? b ?? c`, `(?? a (?? b c))`},
 		{"coalesce below comparison", `a ?? b == c`, `(?? a (== b c))`},
-		{"or loosest", `a ?? b or c`, `(or (?? a b) c)`},
+		{"else loosest", `a ?? b else c`, `(else (?? a b) c)`},
 	})
 }
 
@@ -111,6 +111,7 @@ func TestSumTypesAndMatch(t *testing.T) {
 	runParseCases(t, []parseCase{
 		{"reference shape", "type Shape =\n  | Circle(radius: Float)\n  | Rect(w: Float, h: Float)",
 			`(sum Shape (Circle (radius Float)) (Rect (w Float) (h Float)))`},
+		{"variant without fields", "type Status =\n  | Queued\n  | Done(code: Int)", `(sum Status (Queued) (Done (code Int)))`},
 		{"first bar optional", `type Shape = Circle(r: Float) | Rect(w: Float)`, `(sum Shape (Circle (r Float)) (Rect (w Float)))`},
 		{"reference match", "match s {\n  Circle(r)  -> 3.14159 * r * r\n  Rect(w, h) -> w * h\n}",
 			`(match s (arm (pattern Circle r) (* (* 3.14159 r) r)) (arm (pattern Rect w h) (* w h)))`},
@@ -125,11 +126,11 @@ func TestSumTypesAndMatch(t *testing.T) {
 func TestErrorValues(t *testing.T) {
 	runParseCases(t, []parseCase{
 		{"propagate", `let text = fs.read(path)!`, `(let text (! (call (. fs read) path)))`},
-		{"or default", `load("app.json") or Config.default()`, `(or (call load "app.json") (call (. Config default)))`},
-		{"or handler", `load("app.json") or err -> { log.warn("{err}"); Config.default() }`,
-			`(or (call load "app.json") (err) (block (call (. log warn) (str "" err "")) (call (. Config default))))`},
-		{"or handler expression", `f() or e -> 0`, `(or (call f) (e) 0)`},
-		{"or chain", `a or b or c`, `(or (or a b) c)`},
+		{"else default", `load("app.json") else Config.default()`, `(else (call load "app.json") (call (. Config default)))`},
+		{"else handler", `load("app.json") else err -> { log.warn("{err}"); Config.default() }`,
+			`(else (call load "app.json") (err) (block (call (. log warn) (str "" err "")) (call (. Config default))))`},
+		{"else handler expression", `f() else e -> 0`, `(else (call f) (e) 0)`},
+		{"else chain", `a else b else c`, `(else (else a b) c)`},
 	})
 }
 
@@ -165,7 +166,7 @@ func TestInterfacesTogetherTests(t *testing.T) {
 			`(interface M (fn area (self) -> Int) (fn label (self) -> Str))`},
 		{"together", "let pages = together {\n  urls |> map_par(u -> http.get(u)!)\n}!",
 			`(let pages (! (together (block (|> urls (call map_par (lambda (u) (! (call (. http get) u)))))))))`},
-		{"together or", `together { x } or e -> []`, `(or (together (block x)) (e) (list))`},
+		{"together else", `together { x } else e -> []`, `(else (together (block x)) (e) (list))`},
 		{"test", "test \"greet uses the name\" {\n  assert greet(\"Kiran\") == \"Hello, Kiran\"\n}",
 			`(test "greet uses the name" (block (assert (== (call greet "Kiran") "Hello, Kiran"))))`},
 	})
@@ -232,9 +233,6 @@ func TestRecovery(t *testing.T) {
 		{"pipe into non-call", "xs |> len\nlet b = 1",
 			[]want{{1, 7, "the right side of `|>` must be a call", "call it: `|> len()`"}},
 			"(|> xs (call len))\n(let b 1)"},
-		{"variant without parens", "type T = | A\nlet b = 1",
-			[]want{{1, 13, "expected `(` after variant `A`, found the end of the line", "give the variant its fields in parentheses, like `Circle(radius: Float)`"}},
-			"(sum T (A))\n(let b 1)"},
 		{"fn inside block", "fn f() {\n  fn g() { 1 }\n  2\n}\nlet b = 1",
 			[]want{{2, 3, "`fn` declarations belong at the top level, not inside a block", "move it to the top level of the file"}},
 			"(fn f () (block (bad) 2))\n(let b 1)"},
@@ -266,6 +264,15 @@ func TestRecovery(t *testing.T) {
 				{3, 9, "expected an expression, found `]`", "write a value or expression here"},
 			},
 			"(let a (bad))\n(let b (bad))\n(let c (bad))"},
+		{"if without braces", "if a 1\nlet b = 1",
+			[]want{{1, 6, "expected `{` after the condition, found `1`", "write the branch in braces: `if x > 0 { ... }`"}},
+			"(bad)\n(let b 1)"},
+		{"for without in", "for x xs { }\nlet b = 1",
+			[]want{{1, 7, "expected `in`, found `xs`", "write `for x in ...`"}},
+			"(for x xs (block))\n(let b 1)"},
+		{"bad pattern", "match x {\n  + -> 1\n}",
+			[]want{{2, 3, "expected a pattern, found `+`", "start the arm with a pattern: a variant like `Circle(r)`, a literal, a name, `_`, `(a, b)` or `[x]`"}},
+			"(match x (arm _ (bad)))"},
 		{"stray closing brace", "}\nlet b = 1",
 			[]want{{1, 1, "unexpected `}`", "remove it, or add the `{` it was meant to close"}},
 			"(let b 1)"},
@@ -298,8 +305,8 @@ func TestRecovery(t *testing.T) {
 
 func TestExamplesParseCleanly(t *testing.T) {
 	files, err := filepath.Glob("../examples/*.fn")
-	if err != nil || len(files) != 20 {
-		t.Fatalf("found %d examples (err %v), want 20", len(files), err)
+	if err != nil || len(files) < 20 {
+		t.Fatalf("found %d examples (err %v), want at least 20", len(files), err)
 	}
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
@@ -319,8 +326,8 @@ func TestExamplesParseCleanly(t *testing.T) {
 // refuse them.
 func TestRejectedExamplesParseCleanly(t *testing.T) {
 	files, err := filepath.Glob("../examples/rejected/*.fn")
-	if err != nil || len(files) != 20 {
-		t.Fatalf("found %d rejected examples (err %v), want 20", len(files), err)
+	if err != nil || len(files) < 20 {
+		t.Fatalf("found %d rejected examples (err %v), want at least 20", len(files), err)
 	}
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
@@ -334,4 +341,51 @@ func TestRejectedExamplesParseCleanly(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestControlFlow(t *testing.T) {
+	runParseCases(t, []parseCase{
+		{"if else", `let x = if a { 1 } else { 2 }`, `(let x (if a (block 1) (block 2)))`},
+		{"else if", `if a { 1 } else if b { 2 } else { 3 }`, `(if a (block 1) (if b (block 2) (block 3)))`},
+		{"if as a statement", "if a {\n  f()\n}", `(if a (block (call f)))`},
+		{"else on its own line", "if a {\n  1\n}\nelse {\n  2\n}", `(if a (block 1) (block 2))`},
+		{"record after if is the block", "if ok { User { name: 1 } }", `(if ok (block (record User (name 1))))`},
+		{"for over a list", "for x in xs {\n  f(x)\n}", `(for x xs (block (call f x)))`},
+		{"for over a range", `for _ in 1..8 { f() }`, `(for _ (.. 1 8) (block (call f)))`},
+		{"plus equals", `n += 1`, `(+= n 1)`},
+		{"fail", `fail "bad: {n}"`, `(fail (str "bad: " n ""))`},
+		{"and binds tighter than or", `a or b and c`, `(or a (and b c))`},
+		{"not binds tighter than and", `not a and b`, `(and (not a) b)`},
+		{"comparison inside or", `n < 1 or n > 9`, `(or (< n 1) (> n 9))`},
+		{"else is loosest", `a or b else c`, `(else (or a b) c)`},
+		{"range below arithmetic", `1..n + 1`, `(.. 1 (+ n 1))`},
+		{"range above comparison", `1..3 == xs`, `(== (.. 1 3) xs)`},
+	})
+}
+
+func TestPatterns(t *testing.T) {
+	runParseCases(t, []parseCase{
+		{"tuple and wildcard", "match t {\n  (0, _) -> 1\n  _ -> 2\n}", `(match t (arm (tuple 0 _) 1) (arm _ 2))`},
+		{"list", "match xs {\n  [] -> 0\n  [x] -> 1\n  [x, y] -> 2\n}", `(match xs (arm (list) 0) (arm (list x) 1) (arm (list x y) 2))`},
+		{"literals", "match n {\n  -1 -> \"m\"\n  \"a\" -> 1\n  true -> 2\n}", `(match n (arm (- 1) "m") (arm "a" 1) (arm true 2))`},
+		{"variant with no fields", "match s {\n  Queued -> 0\n}", `(match s (arm (pattern Queued) 0))`},
+		{"nested literal", "match s {\n  Done(0) -> 0\n}", `(match s (arm (pattern Done 0) 0))`},
+		{"bind", "match s {\n  other -> 0\n}", `(match s (arm other 0))`},
+		{"tuple scrutinee", "match (a, b) {\n  _ -> 0\n}", `(match (tuple a b) (arm _ 0))`},
+	})
+}
+
+func TestM3Expressions(t *testing.T) {
+	runParseCases(t, []parseCase{
+		{"lambda of two", `let f = (a, b) -> a + b`, `(let f (lambda (a b) (+ a b)))`},
+		{"tuple", `let t = (1, "a")`, `(let t (tuple 1 "a"))`},
+		{"group is not a tuple", `let t = (1)`, `(let t 1)`},
+		{"anonymous function", `let f = fn() { g() }`, `(let f (fn () (block (call g))))`},
+		{"anonymous function as a statement", "fn() { g() }", `(fn () (block (call g)))`},
+		{"index", `let x = xs[0] ?? 1`, `(let x (?? (index xs 0) 1))`},
+		{"type arguments", `json.parse[Config](t)`, `(call (. json parse)[Config] t)`},
+		{"type arguments vs index", `xs[i](t)`, `(call (index xs i) t)`},
+		{"method", `batch.push(item)`, `(call (. batch push) item)`},
+		{"else handler", "let p = parse(s) else err -> {\n  0\n}", `(let p (else (call parse s) (err) (block 0)))`},
+	})
 }

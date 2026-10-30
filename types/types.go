@@ -83,6 +83,9 @@ type Param struct {
 // Ord is the built-in constraint satisfied by Int, Float and Str.
 var Ord = &Iface{Name: "Ord"}
 
+// Tuple is `(A, B)`.
+type Tuple struct{ Elems []Type }
+
 // Func is the type of a lambda, a method value or a built-in's function
 // argument. There is no syntax for it.
 type Func struct {
@@ -108,6 +111,7 @@ func (*Named) typ() {}
 func (*Iface) typ() {}
 func (*Param) typ() {}
 func (*Func) typ()  {}
+func (*Tuple) typ() {}
 func (*Var) typ()   {}
 func (*Bad) typ()   {}
 
@@ -140,6 +144,12 @@ func Resolve(t Type) Type {
 			ps[i] = Resolve(p)
 		}
 		return &Func{ps, Resolve(t.Result)}
+	case *Tuple:
+		es := make([]Type, len(t.Elems))
+		for i, e := range t.Elems {
+			es[i] = Resolve(e)
+		}
+		return &Tuple{es}
 	default:
 		return t
 	}
@@ -168,6 +178,12 @@ func String(t Type) string {
 			ps = append(ps, String(p))
 		}
 		return "(" + strings.Join(ps, ", ") + ") -> " + String(t.Result)
+	case *Tuple:
+		var es []string
+		for _, e := range t.Elems {
+			es = append(es, String(e))
+		}
+		return "(" + strings.Join(es, ", ") + ")"
 	case *Var:
 		return "an unknown type"
 	case *Bad:
@@ -241,6 +257,12 @@ func occurs(v *Var, t Type) bool {
 			}
 		}
 		return occurs(v, t.Result)
+	case *Tuple:
+		for _, e := range t.Elems {
+			if occurs(v, e) {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -296,6 +318,17 @@ func unify(a, b Type) bool {
 			}
 		}
 		return unify(x.Result, y.Result)
+	case *Tuple:
+		y, ok := b.(*Tuple)
+		if !ok || len(x.Elems) != len(y.Elems) {
+			return false
+		}
+		for i := range x.Elems {
+			if !unify(x.Elems[i], y.Elems[i]) {
+				return false
+			}
+		}
+		return true
 	}
 	// Named, Iface and Param are equal only to themselves, checked above.
 	return false

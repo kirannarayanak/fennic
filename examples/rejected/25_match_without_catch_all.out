@@ -1,0 +1,6 @@
+error: this `match` does not handle every value
+ --> 25_match_without_catch_all.fn:2:3
+  |
+2 |   match n {
+  |   ^^^^^^^
+help: add `_ -> ...` as the last arm to handle the rest

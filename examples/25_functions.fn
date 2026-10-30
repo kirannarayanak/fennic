@@ -1,0 +1,33 @@
+// Lambdas may take several values. fn() { ... } is a function with no name.
+let add = (a, b) -> a + b
+print("{add(2, 3)}")
+
+let largest = [3, 9, 4] |> reduce((a, b) -> if a > b { a } else { b })
+print("largest: {largest ?? 0}")
+
+let sorted = [3, 1, 2] |> sort()
+print("sorted: {sorted}")
+
+let first_big = [1, 5, 12, 20] |> first(n -> n > 10)
+print("first over 10: {first_big ?? 0}")
+
+let hello = fn() { print("hello from a function value") }
+hello()
+
+// Type arguments can be written out.
+fn pair[T](a: T, b: T) -> List[T] {
+  [a, b]
+}
+print("{pair[Str]("x", "y")}")
+
+// Backtick strings have no escapes and no interpolation.
+type Point {
+  x: Int
+  y: Int
+}
+
+fn read_point(text: Str) -> Point! {
+  json.parse[Point](text)
+}
+let p = read_point(`{"x": 3, "y": 4}`) else Point { x: 0, y: 0 }
+print("point: {p}")

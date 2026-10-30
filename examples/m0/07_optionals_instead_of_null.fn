@@ -1,0 +1,20 @@
+fn find(users: List[User], name: Str) -> User? {
+  users |> first(u -> u.name == name)
+}
+
+fn main() {
+  let age = find(users, "Asha")?.age ?? 0
+  print("age: {age}")
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 7 uses `users` and the type User without declaring them.
+type User {
+  name: Str
+  age: Int
+}
+
+let users = [
+  User { name: "Ravi", age: 45 },
+  User { name: "Asha", age: 31 },
+]

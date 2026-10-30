@@ -17,6 +17,10 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		return Unit
 	case *ast.AssignStmt:
 		v := in.eval(s.Value, env, t)
+		if s.Op == token.PlusEq {
+			cur, _ := env.Lookup(s.Name.Name)
+			v = in.arith(&ast.BinaryExpr{Span: s.Span, Op: token.Plus, Left: s.Name, Right: s.Value}, cur, v)
+		}
 		if !env.Assign(s.Name.Name, v) {
 			in.fail(s.Name, fmt.Sprintf("declare it first with `var %s = ...`", s.Name.Name), "`%s` is not defined", s.Name.Name)
 		}
@@ -40,6 +44,19 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		return Unit
 	case *ast.ExprStmt:
 		return in.eval(s.X, env, t)
+	case *ast.ForStmt:
+		items, ok := in.eval(s.In, env, t).(*List)
+		if !ok {
+			in.fail(s.In, "", "`for` goes over a List")
+		}
+		for _, item := range items.Elems {
+			scope := NewEnv(env)
+			if s.Var.Name != "_" {
+				scope.Define(s.Var.Name, item, false)
+			}
+			in.evalBlock(s.Body, scope, t)
+		}
+		return Unit
 	}
 	in.fail(s, "", "this statement could not be parsed")
 	return nil
@@ -96,6 +113,9 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 	case *ast.WithExpr:
 		return in.evalWith(e, env, t)
 	case *ast.UnaryExpr:
+		if e.Op == token.Not {
+			return !in.eval(e.X, env, t).(bool)
+		}
 		switch v := in.eval(e.X, env, t).(type) {
 		case int64:
 			return -v
@@ -112,17 +132,59 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 		args := append([]Value{x}, in.evalArgs(e.Call.Args, env, t)...)
 		return in.call(fn, args, &callSite{node: e, t: t})
 	case *ast.CallExpr:
+		site := &callSite{node: e, t: t}
+		if f, ok := e.Fn.(*ast.FieldExpr); ok && !f.Optional {
+			recv := in.evalRecv(f, env, t)
+			if v, handled := in.builtinMethod(f, recv, e.Args, env, site); handled {
+				return v
+			}
+			fn := in.member(f, recv)
+			return in.call(fn, in.evalArgs(e.Args, env, t), site)
+		}
 		fn := in.eval(e.Fn, env, t)
-		return in.call(fn, in.evalArgs(e.Args, env, t), &callSite{node: e, t: t})
+		return in.call(fn, in.evalArgs(e.Args, env, t), site)
 	case *ast.FieldExpr:
 		return in.evalField(e, env, t)
+	case *ast.IndexExpr:
+		l, ok := in.eval(e.X, env, t).(*List)
+		if !ok {
+			in.fail(e.X, "", "only a List can be indexed")
+		}
+		i := in.eval(e.Index, env, t).(int64)
+		if i < 0 || i >= int64(len(l.Elems)) {
+			return None
+		}
+		return l.Elems[i]
+	case *ast.TupleLit:
+		return &Tuple{Elems: in.evalArgs(e.Elems, env, t)}
+	case *ast.IfExpr:
+		if in.eval(e.Cond, env, t).(bool) {
+			v := in.evalBlock(e.Then, env, t)
+			if e.Else == nil {
+				return Unit
+			}
+			return v
+		}
+		if e.Else == nil {
+			return Unit
+		}
+		return in.eval(e.Else, env, t)
+	case *ast.FailExpr:
+		msg := Display(in.eval(e.Msg, env, t))
+		panic(&propagation{failure: &Failure{Msg: msg}, at: e})
+	case *ast.FuncLit:
+		c := &Closure{Body: e.Body, Env: env, NoResult: e.Result == nil}
+		for _, p := range e.Params {
+			c.Params = append(c.Params, p.Name.Name)
+		}
+		return c
 	case *ast.PropagateExpr:
 		v := in.eval(e.X, env, t)
 		if f, ok := v.(*Failure); ok {
 			panic(&propagation{failure: f, at: e})
 		}
 		return v
-	case *ast.OrExpr:
+	case *ast.ElseExpr:
 		v := in.eval(e.X, env, t)
 		f, ok := v.(*Failure)
 		if !ok {
@@ -135,7 +197,11 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 		scope.Define(e.ErrName.Name, f, false)
 		return in.eval(e.Fallback, scope, t)
 	case *ast.LambdaExpr:
-		return &Closure{Lambda: e, Env: env}
+		c := &Closure{Body: e.Body, Env: env}
+		for _, p := range e.Params {
+			c.Params = append(c.Params, p.Name)
+		}
+		return c
 	case *ast.Block:
 		return in.evalBlock(e, env, t)
 	case *ast.MatchExpr:
@@ -202,7 +268,17 @@ func (in *Interp) evalWith(e *ast.WithExpr, env *Env, t *task) Value {
 }
 
 func (in *Interp) evalField(e *ast.FieldExpr, env *Env, t *task) Value {
-	x := in.eval(e.X, env, t)
+	return in.member(e, in.evalRecv(e, env, t))
+}
+
+// evalRecv evaluates what `x.name` looks inside. A type name gives a
+// TypeRef, as in `Config.default`.
+func (in *Interp) evalRecv(e *ast.FieldExpr, env *Env, t *task) Value {
+	return in.eval(e.X, env, t)
+}
+
+// member finds field or method `e.Name` on the value x.
+func (in *Interp) member(e *ast.FieldExpr, x Value) Value {
 	name := e.Name.Name
 	switch v := x.(type) {
 	case noneValue:
@@ -252,30 +328,51 @@ func typeName(v Value) string {
 
 func (in *Interp) evalMatch(e *ast.MatchExpr, env *Env, t *task) Value {
 	x := in.eval(e.X, env, t)
-	v, ok := x.(*Variant)
-	if !ok {
-		in.fail(e.X, "", "`match` takes apart a sum type, but this is %s", article(kindName(x)))
-	}
 	for _, arm := range e.Arms {
-		if arm.Pattern.Name.Name != v.Type.Name {
-			continue
-		}
-		if len(arm.Pattern.Binds) != len(v.Fields) {
-			in.fail(arm.Pattern, fmt.Sprintf("write `%s(%s)`", v.Type.Name, joinNames(v.Type.Fields)),
-				"`%s` has %d %s, but the pattern names %d", v.Type.Name, len(v.Fields), plural(len(v.Fields), "field", "fields"), len(arm.Pattern.Binds))
-		}
 		scope := NewEnv(env)
-		for i, b := range arm.Pattern.Binds {
-			scope.Define(b.Name, v.Fields[i], false)
+		if in.matches(arm.Pattern, x, scope, t) {
+			return in.eval(arm.Body, scope, t)
 		}
-		return in.eval(arm.Body, scope, t)
 	}
-	in.fail(e, fmt.Sprintf("add an arm: `%s(%s) -> ...`", v.Type.Name, joinNames(v.Type.Fields)), "no arm matches `%s`", v.Type.Name)
+	in.fail(e, "add `_ -> ...` as the last arm", "no arm matches %s", show(x))
 	return nil
 }
 
+// matches reports whether v fits pattern p, binding the pattern's names in
+// scope as it goes.
+func (in *Interp) matches(p ast.Pattern, v Value, scope *Env, t *task) bool {
+	switch p := p.(type) {
+	case *ast.WildcardPattern:
+		return true
+	case *ast.BindPattern:
+		scope.Define(p.Name.Name, v, false)
+		return true
+	case *ast.LiteralPattern:
+		return equal(in.eval(p.Value, scope, t), v)
+	case *ast.TuplePattern:
+		tv, ok := v.(*Tuple)
+		return ok && len(tv.Elems) == len(p.Elems) && in.matchAll(p.Elems, tv.Elems, scope, t)
+	case *ast.ListPattern:
+		lv, ok := v.(*List)
+		return ok && len(lv.Elems) == len(p.Elems) && in.matchAll(p.Elems, lv.Elems, scope, t)
+	case *ast.VariantPattern:
+		vv, ok := v.(*Variant)
+		return ok && vv.Type.Name == p.Name.Name && len(vv.Fields) == len(p.Args) && in.matchAll(p.Args, vv.Fields, scope, t)
+	}
+	return false
+}
+
+func (in *Interp) matchAll(ps []ast.Pattern, vs []Value, scope *Env, t *task) bool {
+	for i, p := range ps {
+		if !in.matches(p, vs[i], scope, t) {
+			return false
+		}
+	}
+	return true
+}
+
 // evalTogether runs a block as a structured scope. Its result is a failure
-// if the block failed, which `!` or `or` then handle.
+// if the block failed, which `!` or `else` then handle.
 func (in *Interp) evalTogether(e *ast.TogetherExpr, env *Env, t *task) (result Value) {
 	ctx, cancel := context.WithCancel(t.ctx)
 	defer cancel()
@@ -293,12 +390,24 @@ func (in *Interp) evalTogether(e *ast.TogetherExpr, env *Env, t *task) (result V
 }
 
 func (in *Interp) evalBinary(e *ast.BinaryExpr, env *Env, t *task) Value {
-	if e.Op == token.QQ {
+	switch e.Op {
+	case token.QQ:
 		l := in.eval(e.Left, env, t)
 		if l == None {
 			return in.eval(e.Right, env, t)
 		}
 		return l
+	case token.And:
+		return in.eval(e.Left, env, t).(bool) && in.eval(e.Right, env, t).(bool)
+	case token.Or:
+		return in.eval(e.Left, env, t).(bool) || in.eval(e.Right, env, t).(bool)
+	case token.DotDot:
+		lo, hi := in.eval(e.Left, env, t).(int64), in.eval(e.Right, env, t).(int64)
+		r := &List{}
+		for i := lo; i <= hi; i++ {
+			r.Elems = append(r.Elems, i)
+		}
+		return r
 	}
 	l := in.eval(e.Left, env, t)
 	r := in.eval(e.Right, env, t)
@@ -399,6 +508,17 @@ func equal(a, b Value) bool {
 		}
 		for i := range x.Fields {
 			if !equal(x.Fields[i], y.Fields[i]) {
+				return false
+			}
+		}
+		return true
+	case *Tuple:
+		y, ok := b.(*Tuple)
+		if !ok || len(x.Elems) != len(y.Elems) {
+			return false
+		}
+		for i := range x.Elems {
+			if !equal(x.Elems[i], y.Elems[i]) {
 				return false
 			}
 		}

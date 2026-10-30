@@ -1,0 +1,16 @@
+fn parse_port(s: Str) -> Int! {
+  let n = int.parse(s)!
+  if n < 1 or n > 65535 {
+    fail "port out of range: {n}"
+  }
+  n
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 9 has no main.
+fn main() {
+  ["8080", "0", "http"] |> each(s -> {
+    let port = parse_port(s) else err -> { print("{s}: {err}"); 0 }
+    if port > 0 { print("{s}: port {port}") }
+  })
+}

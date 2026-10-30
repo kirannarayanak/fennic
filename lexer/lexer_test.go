@@ -237,6 +237,7 @@ func TestErrors(t *testing.T) {
 			"to handle a failure write `or`; there is no boolean `||`", 1, 3, "a ILLEGAL(||) b"},
 		{"digit then letters", "let 2x = 1", "`2x` is not a number or a name",
 			"names cannot start with a digit; put a space between a number and a name", 1, 5, "let ILLEGAL(2x) = 1"},
+		{"unclosed raw string", "x = `abc", "this raw string is never closed", "add a closing ` at the end of the string", 1, 5, `x = Str"abc"`},
 		{"stray character", "a @ b", "unexpected character `@`", "remove it", 1, 3, "a ILLEGAL(@) b"},
 	}
 	for _, c := range cases {
@@ -262,8 +263,8 @@ func TestErrors(t *testing.T) {
 // Every acceptance program must lex without a diagnostic.
 func TestExamplesLexCleanly(t *testing.T) {
 	files, err := filepath.Glob("../examples/*.fn")
-	if err != nil || len(files) != 20 {
-		t.Fatalf("found %d examples (err %v), want 20", len(files), err)
+	if err != nil || len(files) < 20 {
+		t.Fatalf("found %d examples (err %v), want at least 20", len(files), err)
 	}
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
@@ -277,4 +278,19 @@ func TestExamplesLexCleanly(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestM3Tokens(t *testing.T) {
+	runTokCases(t, []tokCase{
+		{"range", `1..100`, `1 .. 100`},
+		{"range of names", `a..b`, `a .. b`},
+		{"plus equals", `n += 1`, `n += 1`},
+		{"keywords", `if else for in and or not fail`, `if else for in and or not fail`},
+		{"raw string", "`{\"port\": 80}`", `Str"{\"port\": 80}"`},
+		{"raw string keeps backslashes", "`a\\nb`", `Str"a\\nb"`},
+		{"raw string across lines", "`a\nb`\nx", `Str"a\nb" NL x`},
+		{"else on the next line continues", "if a {\n  b\n}\nelse {\n  c\n}", `if a { b NL } else { c NL }`},
+		{"fallback on the next line continues", "load()\n  else 0", `load ( ) else 0`},
+		{"after and", "a and\nb", `a and b`},
+	})
 }

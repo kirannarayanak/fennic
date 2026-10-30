@@ -124,10 +124,9 @@ func TestDisplay(t *testing.T) {
 		{"empty record", "type E {}\nprint(\"{E {}}\")", "E {}"},
 		{"variant", "type S = | C(r: Float) | R(w: Float, h: Float)\nprint(\"{[C(1.0), R(2.0, 3.0)]}\")", "[C(1.0), R(2.0, 3.0)]"},
 		{"none and bool", `print("{none} {true}")`, "none true"},
+		{"print shows any value", "print(42)\nprint([1, 2])\nprint((1, \"a\"))", "42\n[1, 2]\n(1, \"a\")"},
 	})
-	errCases(t, []errCase{
-		{"print needs a Str", `print(42)`, "`print` needs a Str, but was given an Int", `turn it into a Str with interpolation: print("{x}")`},
-	})
+	errCases(t, []errCase{})
 }
 
 func TestFunctionsAndMethods(t *testing.T) {
@@ -185,9 +184,9 @@ func TestMatch(t *testing.T) {
 		{"binds fields", "type S = | C(r: Int) | R(w: Int, h: Int)\nlet a = match R(2, 3) {\n  C(r) -> r\n  R(w, h) -> w * h\n}\nprint(\"{a}\")", "6"},
 	})
 	errCases(t, []errCase{
-		{"no arm", "type S = | C(r: Int) | R(w: Int)\nlet x = match R(1) {\n  C(r) -> r\n}", "no arm matches `R`", "add an arm: `R(w) -> ...`"},
-		{"wrong bind count", "type S = | R(w: Int, h: Int)\nlet x = match R(1, 2) {\n  R(w) -> w\n}", "`R` has 2 fields, but the pattern names 1", "write `R(w, h)`"},
-		{"not a variant", "let x = match 3 {\n  A(n) -> n\n}", "`match` takes apart a sum type, but this is an Int", ""},
+		{"no arm", "type S = | C(r: Int) | R(w: Int)\nlet x = match R(1) {\n  C(r) -> r\n}", "no arm matches R(1)", "add `_ -> ...` as the last arm"},
+		{"wrong bind count", "type S = | R(w: Int, h: Int)\nlet x = match R(1, 2) {\n  R(w) -> w\n}", "no arm matches R(1, 2)", "add `_ -> ...` as the last arm"},
+		{"not a variant", "let x = match 3 {\n  A(n) -> n\n}", "no arm matches 3", "add `_ -> ...` as the last arm"},
 		{"constructor arity", "type S = | R(w: Int, h: Int)\nlet r = R(1)", "`R` takes 2 values, but was given 1", "write `R(w, h)`"},
 	})
 }
@@ -195,21 +194,21 @@ func TestMatch(t *testing.T) {
 func TestFailures(t *testing.T) {
 	runCases(t, []runCase{
 		{"read succeeds", `print(fs.read("hello.txt")!)`, "hi"},
-		{"or default", `print(fs.read("nope.txt") or "fallback")`, "fallback"},
-		{"or handler", `print(fs.read("nope.txt") or e -> "handled: {e}")`, `handled: cannot read "nope.txt": file not found`},
-		{"or skipped on success", `print(fs.read("hello.txt") or "fallback")`, "hi"},
-		{"propagates through functions", "fn a() -> Str! { b()! }\nfn b() -> Str! { fs.read(\"nope.txt\")! }\nprint(a() or e -> \"{e}\")",
+		{"else default", `print(fs.read("nope.txt") else "fallback")`, "fallback"},
+		{"else handler", `print(fs.read("nope.txt") else e -> "handled: {e}")`, `handled: cannot read "nope.txt": file not found`},
+		{"else skipped on success", `print(fs.read("hello.txt") else "fallback")`, "hi"},
+		{"propagates through functions", "fn a() -> Str! { b()! }\nfn b() -> Str! { fs.read(\"nope.txt\")! }\nprint(a() else e -> \"{e}\")",
 			`cannot read "nope.txt": file not found`},
 		{"failure is a value until handled", "let f = fs.read(\"nope.txt\")\nprint(\"later: {f}\")", `later: cannot read "nope.txt": file not found`},
 		{"json", `let v = json.parse("\{\"a\": [1, 2.5, \"s\", true, null]}")!` + "\n" + `print("{v.a}")`, `[1, 2.5, "s", true, none]`},
-		{"json error", `print(json.parse("[1,]") or e -> "{e}")`, `invalid JSON at 1:4: unexpected "]"`},
-		{"json incomplete", `print(json.parse("[1") or e -> "{e}")`, "invalid JSON: the text ends before the value is complete"},
+		{"json error", `print(json.parse("[1,]") else e -> "{e}")`, `invalid JSON at 1:4: unexpected "]"`},
+		{"json incomplete", `print(json.parse("[1") else e -> "{e}")`, "invalid JSON: the text ends before the value is complete"},
 	})
 	errCases(t, []errCase{
 		{"uncaught at top level", `let t = fs.read("nope.txt")!`, `cannot read "nope.txt": file not found`,
-			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `or`, for example `fs.read(\"nope.txt\") or \"\"`"},
+			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `fs.read(\"nope.txt\") else \"\"`"},
 		{"uncaught from a function has no type hint", "fn f() -> Str! { fs.read(\"nope.txt\")! }\nlet t = f()!", `cannot read "nope.txt": file not found`,
-			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `or`, for example `f() or <fallback value>`"},
+			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `f() else <fallback value>`"},
 	})
 }
 
@@ -238,11 +237,11 @@ func TestPipelinesAndBuiltins(t *testing.T) {
 func TestTogether(t *testing.T) {
 	runCases(t, []runCase{
 		{"order kept", `print("{together { [5, 4, 3, 2, 1] |> map_par(n -> n * n) }!}")`, "[25, 16, 9, 4, 1]"},
-		{"the failing task is reported", `print("{together { ["hello.txt", "hello.txt", "x.txt", "hello.txt"] |> map_par(f -> fs.read(f)!) } or e -> "{e}"}")`,
+		{"the failing task is reported", `print("{together { ["hello.txt", "hello.txt", "x.txt", "hello.txt"] |> map_par(f -> fs.read(f)!) } else e -> "{e}"}")`,
 			`cannot read "x.txt": file not found`},
-		{"real failure beats cancellation", `print("{together { ["hello.txt", "x.txt", "hello.txt"] |> map_par(f -> fs.read(f)!) } or e -> "{e}"}")`,
+		{"real failure beats cancellation", `print("{together { ["hello.txt", "x.txt", "hello.txt"] |> map_par(f -> fs.read(f)!) } else e -> "{e}"}")`,
 			`cannot read "x.txt": file not found`},
-		{"failure inside the block", `print(together { fs.read("nope.txt")! } or e -> "caught")`, "caught"},
+		{"failure inside the block", `print(together { fs.read("nope.txt")! } else e -> "caught")`, "caught"},
 	})
 	errCases(t, []errCase{
 		{"runtime error in a task", `let x = together { [1, 0] |> map_par(n -> 1 / n) }!`, "division by zero", "check the divisor before dividing"},
@@ -253,7 +252,7 @@ func TestTogether(t *testing.T) {
 // result is always one of their real errors, never a cancellation.
 func TestTogetherSeveralFailures(t *testing.T) {
 	for i := 0; i < 50; i++ {
-		out, msg, _ := run(t, `print(together { ["a.txt", "b.txt", "c.txt"] |> map_par(f -> fs.read(f)!) } or e -> "{e}")`)
+		out, msg, _ := run(t, `print(together { ["a.txt", "b.txt", "c.txt"] |> map_par(f -> fs.read(f)!) } else e -> "{e}")`)
 		if msg != "" {
 			t.Fatal(msg)
 		}
@@ -324,4 +323,24 @@ func TestTestBlocks(t *testing.T) {
 	if failed != 2 || !strings.HasSuffix(report, "\n2 passed, 2 failed\n") {
 		t.Errorf("report:\n%s", report)
 	}
+}
+
+func TestM3Runtime(t *testing.T) {
+	runCases(t, []runCase{
+		{"and short-circuits", `print("{false and (1 / 0 == 1)}")`, "false"},
+		{"or short-circuits", `print("{true or (1 / 0 == 1)}")`, "true"},
+		{"empty range", "var n = 0\nfor _ in 5..1 {\n  n += 1\n}\nprint(\"{n}\")", "0"},
+		{"range includes both ends", `print("{1..3}")`, "[1, 2, 3]"},
+		{"push makes a new list", "var a = [1]\nvar b = a\nb.push(2)\nprint(\"{a} {b}\")", "[1] [1, 2]"},
+		{"index out of range", `print("{[1][5] ?? 0} {[1][-1] ?? 0}")`, "0 0"},
+		{"else if", "let n = 5\nprint(if n < 0 { \"neg\" } else if n < 10 { \"small\" } else { \"big\" })", "small"},
+		{"if without else gives nothing", "let x = if false { 1 }\nprint(\"{x}\")", "()"},
+		{"tuple equality", `print("{(1, "a") == (1, "a")}")`, "true"},
+		{"zero-field variant", "type S = | A | B(n: Int)\nprint(\"{[A, B(1)]}\")", "[A, B(1)]"},
+		{"nested patterns", "type S = | B(n: Int)\nlet r = match (B(0), [1, 2]) {\n  (B(0), [x, y]) -> x + y\n  _ -> 0\n}\nprint(\"{r}\")", "3"},
+		{"fail in a lambda stops map", "let r = [1, 2, 3] |> map(n -> if n == 2 { fail \"two\" } else { n }) else e -> { print(\"{e}\"); [] }\nprint(\"{r}\")", "two\n[]"},
+	})
+	errCases(t, []errCase{
+		{"fail at the top level", `fail "stop here"`, "stop here", "nothing handles this failure, so the program stops; call the code that fails with `else` to handle it"},
+	})
 }

@@ -1,0 +1,3 @@
+let n = 3
+let label = if n > 2 { "big" } else { 0 }
+print(label)

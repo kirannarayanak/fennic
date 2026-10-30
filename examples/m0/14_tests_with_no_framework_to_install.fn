@@ -1,0 +1,21 @@
+test "chunk splits evenly and keeps the remainder" {
+  assert chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+  assert chunk([], 3) == []
+}
+
+// ---- preamble: not part of the spec program ----
+// expect: test
+// Program 14 tests chunk from program 12.
+fn chunk[T](items: List[T], size: Int) -> List[List[T]] {
+  var out = []
+  var batch = []
+  for item in items {
+    batch.push(item)
+    if batch.len() == size {
+      out.push(batch)
+      batch = []
+    }
+  }
+  if batch.len() > 0 { out.push(batch) }
+  out
+}

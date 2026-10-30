@@ -64,7 +64,7 @@ type Variant struct {
 }
 
 // Failure is a failed result. Msg is what `"{err}"` shows. Fallback, when
-// set, is source text for a sensible `or` default, used in the help for a
+// set, is source text for a sensible `else` default, used in the help for a
 // failure nobody handled; it is cleared when the failure leaves a user
 // function, whose result type M1 does not know.
 type Failure struct {
@@ -73,11 +73,17 @@ type Failure struct {
 	cancelled bool // a task stopped because a sibling failed; never the reported cause
 }
 
-// Closure is a lambda with the scope it was created in.
+// Closure is a lambda or an anonymous function, with the scope it was
+// created in. NoResult is set for `fn() { ... }` without a result type.
 type Closure struct {
-	Lambda *ast.LambdaExpr
-	Env    *Env
+	Params   []string
+	Body     ast.Expr
+	Env      *Env
+	NoResult bool
 }
+
+// Tuple is `(a, b)`.
+type Tuple struct{ Elems []Value }
 
 // Func is a declared function or method.
 type Func struct {
@@ -116,6 +122,8 @@ func kindName(v Value) string {
 		return "Bool"
 	case *List:
 		return "List"
+	case *Tuple:
+		return "tuple"
 	case *Record:
 		if v.Type.Name == "" {
 			return "record"

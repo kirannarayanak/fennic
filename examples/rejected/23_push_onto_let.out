@@ -1,0 +1,6 @@
+error: cannot push onto `names` because it was declared with `let`
+ --> 23_push_onto_let.fn:2:1
+  |
+2 | names.push("Bo")
+  | ^^^^^
+help: change line 1 to `var names = ["Ada"]` if `names` needs to change

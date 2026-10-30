@@ -1,0 +1,42 @@
+// match takes apart sum types, tuples, lists and literals.
+type Status =
+  | Queued
+  | Running(pid: Int)
+  | Done(code: Int)
+
+fn describe(s: Status) -> Str {
+  match s {
+    Queued       -> "waiting"
+    Running(pid) -> "running as {pid}"
+    Done(0)      -> "finished cleanly"
+    Done(c)      -> "failed with {c}"
+  }
+}
+
+[Queued, Running(41), Done(0), Done(2)] |> each(s -> print(describe(s)))
+
+fn fizz(n: Int) -> Str {
+  match (n % 3, n % 5) {
+    (0, 0) -> "FizzBuzz"
+    (0, _) -> "Fizz"
+    (_, 0) -> "Buzz"
+    _      -> "{n}"
+  }
+}
+print("{[9, 10, 15, 7] |> map(n -> fizz(n))}")
+
+fn shape(xs: List[Int]) -> Str {
+  match xs {
+    []     -> "empty"
+    [x]    -> "one: {x}"
+    [x, y] -> "two: {x + y}"
+    _      -> "many"
+  }
+}
+print("{[[], [5], [1, 2], [1, 2, 3]] |> map(xs -> shape(xs))}")
+
+let answer = match true {
+  true  -> "yes"
+  false -> "no"
+}
+print(answer)

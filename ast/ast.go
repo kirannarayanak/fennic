@@ -148,10 +148,20 @@ type LetStmt struct {
 }
 
 // AssignStmt is `x = e`.
+// AssignStmt is `x = e`, or `x += e` with Op set to token.PlusEq.
 type AssignStmt struct {
 	Span
 	Name  *Ident
+	Op    token.Kind
 	Value Expr
+}
+
+// ForStmt is `for x in items { ... }`. Var is `_` when the value is unused.
+type ForStmt struct {
+	Span
+	Var  *Ident
+	In   Expr
+	Body *Block
 }
 
 type AssertStmt struct {
@@ -247,10 +257,48 @@ type PipeExpr struct {
 	Call *CallExpr
 }
 
+// CallExpr is `f(a)`, or `f[T](a)` with explicit type arguments.
 type CallExpr struct {
 	Span
-	Fn   Expr
-	Args []Expr
+	Fn       Expr
+	TypeArgs []TypeExpr
+	Args     []Expr
+}
+
+// IndexExpr is `xs[i]`.
+type IndexExpr struct {
+	Span
+	X     Expr
+	Index Expr
+}
+
+// TupleLit is `(a, b)`.
+type TupleLit struct {
+	Span
+	Elems []Expr
+}
+
+// IfExpr is `if cond { ... } else { ... }`. Else is nil when there is no
+// else branch, a *Block, or an *IfExpr for `else if`.
+type IfExpr struct {
+	Span
+	Cond Expr
+	Then *Block
+	Else Expr
+}
+
+// FailExpr is `fail "message"`.
+type FailExpr struct {
+	Span
+	Msg Expr
+}
+
+// FuncLit is an anonymous function: `fn() { ... }`.
+type FuncLit struct {
+	Span
+	Params []*Param
+	Result TypeExpr
+	Body   *Block
 }
 
 // FieldExpr is `x.name`, or `x?.name` with Optional set.
@@ -268,8 +316,9 @@ type PropagateExpr struct {
 	X Expr
 }
 
-// OrExpr is `x or fallback`, or `x or err -> handler` with ErrName set.
-type OrExpr struct {
+// ElseExpr is `x else fallback`, or `x else err -> handler` with ErrName
+// set: the handling of a failure.
+type ElseExpr struct {
 	Span
 	X        Expr
 	ErrName  *Ident
@@ -305,16 +354,79 @@ type MatchExpr struct {
 
 type MatchArm struct {
 	Span
-	Pattern *VariantPattern
+	Pattern Pattern
 	Body    Expr
 }
 
-// VariantPattern is `Circle(r)` or `Rect(w, h)`.
+// Pattern is what a match arm compares a value with.
+type Pattern interface {
+	Node
+	pattern()
+}
+
+// VariantPattern is `Circle(r)`, `Done(0)`, or `Queued` with no Args.
 type VariantPattern struct {
 	Span
-	Name  *Ident
-	Binds []*Ident
+	Name *Ident
+	Args []Pattern
 }
+
+// BindPattern is a name, which matches anything and binds it.
+type BindPattern struct {
+	Span
+	Name *Ident
+}
+
+// WildcardPattern is `_`, which matches anything and binds nothing.
+type WildcardPattern struct{ Span }
+
+// LiteralPattern is a literal such as `0`, `-1`, `"a"` or `true`.
+type LiteralPattern struct {
+	Span
+	Value Expr // *IntLit, *FloatLit, *StrLit, *BoolLit, or *UnaryExpr of a number
+}
+
+// TuplePattern is `(p, q)`.
+type TuplePattern struct {
+	Span
+	Elems []Pattern
+}
+
+// ListPattern is `[p, q]`, which matches a list of exactly that length.
+type ListPattern struct {
+	Span
+	Elems []Pattern
+}
+
+// PatternBinds lists the names a pattern binds, in order.
+func PatternBinds(p Pattern) []*Ident {
+	switch p := p.(type) {
+	case *BindPattern:
+		return []*Ident{p.Name}
+	case *VariantPattern:
+		return bindsOf(p.Args)
+	case *TuplePattern:
+		return bindsOf(p.Elems)
+	case *ListPattern:
+		return bindsOf(p.Elems)
+	}
+	return nil
+}
+
+func bindsOf(ps []Pattern) []*Ident {
+	var out []*Ident
+	for _, p := range ps {
+		out = append(out, PatternBinds(p)...)
+	}
+	return out
+}
+
+func (*VariantPattern) pattern()  {}
+func (*BindPattern) pattern()     {}
+func (*WildcardPattern) pattern() {}
+func (*LiteralPattern) pattern()  {}
+func (*TuplePattern) pattern()    {}
+func (*ListPattern) pattern()     {}
 
 // TogetherExpr is `together { ... }`.
 type TogetherExpr struct {
@@ -338,12 +450,14 @@ func (*LetStmt) item()       {}
 func (*AssignStmt) item()    {}
 func (*AssertStmt) item()    {}
 func (*ExprStmt) item()      {}
+func (*ForStmt) item()       {}
 func (*BadStmt) item()       {}
 
 func (*LetStmt) stmt()    {}
 func (*AssignStmt) stmt() {}
 func (*AssertStmt) stmt() {}
 func (*ExprStmt) stmt()   {}
+func (*ForStmt) stmt()    {}
 func (*BadStmt) stmt()    {}
 
 func (*NamedType) typeExpr()    {}
@@ -365,7 +479,12 @@ func (*PipeExpr) expr()      {}
 func (*CallExpr) expr()      {}
 func (*FieldExpr) expr()     {}
 func (*PropagateExpr) expr() {}
-func (*OrExpr) expr()        {}
+func (*ElseExpr) expr()      {}
+func (*IndexExpr) expr()     {}
+func (*TupleLit) expr()      {}
+func (*IfExpr) expr()        {}
+func (*FailExpr) expr()      {}
+func (*FuncLit) expr()       {}
 func (*WithExpr) expr()      {}
 func (*LambdaExpr) expr()    {}
 func (*Block) expr()         {}

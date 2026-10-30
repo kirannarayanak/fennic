@@ -13,12 +13,13 @@ let adults = users
   |> filter(u -> u.age >= 18)
   |> sort_by(u -> u.name)
 
-let cfg = load("app.json") or Config.default()
+let cfg = load("app.json") else Config.default()
 ```
 
-**Status: M2.** Fennic is a tree-walking interpreter with a type checker
-that runs before anything else: a program with a type error does not run.
-Expect the language to change.
+**Status: M3 in progress.** Fennic is a tree-walking interpreter with a
+type checker that runs before anything else: a program with a type error
+does not run. M3 is finishing the language described in
+[`docs/m0-spec.md`](docs/m0-spec.md). Expect it to change.
 
 ## Install
 
@@ -49,8 +50,9 @@ go build -o fennic ./cmd/fennic
 Fennic programs are files ending in `.fn`.
 
 ```bash
-fennic run hello.fn     # run a program
-fennic test hello.fn    # run the program, then its test blocks
+fennic run hello.fn           # run a program
+fennic run tool.fn a b        # run it with command-line arguments
+fennic test hello.fn          # run the program, then its test blocks
 ```
 
 `fennic run` exits with status 0 on success and 1 if the program has an
@@ -83,7 +85,7 @@ users
   |> sort_by(u -> u.name)
   |> each(u -> print("{greet(u.name)} <{u.email ?? "no email"}>"))
 
-let notes = fs.read("notes.txt") or "no notes yet"
+let notes = fs.read("notes.txt") else "no notes yet"
 print(notes)
 
 test "greet uses the name" {
@@ -128,12 +130,12 @@ A file with several mistakes reports all of them, in order, before
 anything runs. Type errors are caught the same way:
 
 ```
-error: `print` needs a Str, but this is a Str!, which might be a failure
+error: `print` needs a value to show, but this is a Str!, which might be a failure
  --> notes.fn:2:7
   |
 2 | print(notes)
   |       ^^^^^
-help: handle the failure first: `notes or ""` gives a fallback, and `notes!` passes it on
+help: handle the failure first: `notes else ""` gives a fallback, and `notes!` passes it on
 ```
 
 ## The language in brief
@@ -146,19 +148,26 @@ help: handle the failure first: `notes or ""` gives a fallback, and `notes!` pas
 | Records | `type User { name: Str }`, built with `User { name: "Ada" }`, copied with `u with { name: "Bo" }` |
 | Sum types | `type Shape = \| Circle(r: Float) \| Rect(w: Float, h: Float)`, taken apart with `match` |
 | No null | `T?` is optional; `none`, `??` for a default, `?.` to chain |
-| Errors are values | a failing function returns `T!`; `x!` passes the failure up, `x or fallback` handles it |
+| Errors are values | a failing function returns `T!`; `x!` passes the failure up, `x else fallback` handles it, `fail "why"` makes one |
+| Control flow | `if a > b { a } else { b }` is an expression; `and`, `or`, `not` combine Bools |
+| Loops | `for x in xs { ... }`, `for n in 1..10 { ... }` (both ends included), `total += n` |
+| Patterns | `match` takes apart variants, tuples `(0, _)`, lists `[x, y]` and literals, and must cover every case |
+| Entry point | `fn main()` or `fn main(args: List[Str])` runs after the top level |
 | Pipelines | `xs \|> filter(x -> x > 0) \|> take(10)` |
 | Interfaces | satisfied structurally; methods are `fn Type.name(self, ...)` |
 | Concurrency | `together { xs \|> map_par(f) }!` runs tasks in a scope that cancels on failure |
 | Tests | `test "name" { assert ... }` |
 
-The [`examples/`](examples) directory has twenty runnable programs, one or
-more per feature, each with its expected output beside it. They are the
-acceptance suite for this milestone.
+The [`examples/`](examples) directory has runnable programs, one or more per
+feature, each with its expected output beside it. `examples/rejected` holds
+programs the checker must refuse, and `examples/m0` runs the programs of the
+spec as written.
 
 Built-in functions: `print`, `len`, `first`, `last`, `sum`, `map`, `each`,
-`filter`, `sort_by`, `take`, `map_par`, plus `fs.read`, `json.parse` and
-`log.warn`.
+`filter`, `sort_by`, `sort`, `reduce`, `take`, `map_par`, `env`, plus
+`fs.read`, `json.parse`, `int.parse` and `log.warn`. Lists have `.len()` and
+`.push(x)`; strings have `.len()`. Backtick strings, `` `{"a": 1}` ``, have no
+escapes and no interpolation.
 
 ## Development
 

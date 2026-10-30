@@ -1,0 +1,6 @@
+fn main() {
+  let name = "Kiran"
+  var greetings = 0
+  print("Hello, {name}")
+  greetings += 1
+}

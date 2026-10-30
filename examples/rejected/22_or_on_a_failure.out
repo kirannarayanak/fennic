@@ -1,0 +1,6 @@
+error: `or` combines two Bools, but this is a Str!, which might be a failure
+ --> 22_or_on_a_failure.fn:1:12
+  |
+1 | let text = fs.read("notes.txt") or ""
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to give a fallback for a failure, write `else`: `fs.read("notes.txt") else ""`

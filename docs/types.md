@@ -22,7 +22,8 @@ acceptance suite.
 | sum type | `type Shape = \| ...` | `Circle(1.0)` |
 | interface | `interface Sink { ... }` | any value whose type has the methods |
 | type parameter | `T` in `fn f[T](...)` | |
-| error | (no name to write) | `err` in `or err -> ...` |
+| error | (no name to write) | `err` in `else err -> ...` |
+| tuple | (no name to write) | `(1, "a")` |
 
 Records and sum types are nominal: two types with the same fields are
 different types. Interfaces are structural.
@@ -69,9 +70,12 @@ handled before its value is used:
   a lambda (which makes the lambda's result failable), in a `together`
   block, in a `test`, and at the top level (where it stops the program).
   Anywhere else it is an error naming the result type to change.
-- `x or y` needs `y: T` and is a `T`. `x or err -> body` binds `err` to the
-  error and needs `body: T`.
-- `!` or `or` on something that cannot fail is an error.
+- `x else y` needs `y: T` and is a `T`. `x else err -> body` binds `err`
+  to the error and needs `body: T`.
+- `!` or `else` on something that cannot fail is an error.
+- `fail "message"` stops with a failure. It is allowed where `!` is, and
+  has whatever type its place needs, so it can be a branch or an arm.
+- Using the boolean `or` on a failure is reported with the fix: `else`.
 - Storing a `T!` in a `let` is allowed; using it as a `T` is not.
 
 A failable function's body may end in a `T` or a `T!`.
@@ -102,6 +106,34 @@ holds for Int, Float and Str; any other constraint is an interface.
 **Strings.** Interpolation accepts any value except a failable or a
 function. `print` and `log.warn` take a Str. `assert` takes a Bool.
 
+## Added in M3
+
+**Control flow.** `if c { a } else { b }` needs a Bool condition, and both
+branches give the same type; without `else` it gives nothing. `and`, `or`
+and `not` need Bools. `for x in xs` goes over a List; `a..b` is the List of
+Ints from `a` to `b`, both included. `x += e` is `x = x + e`.
+
+**Patterns.** `match` works on any value. A pattern is a variant, which may
+have no fields (`Queued`) or nested patterns (`Done(0)`); a literal; a
+name, which binds; `_`; a tuple `(p, q)`; or a list `[p, q]` of exactly
+that length. A match must cover every value: each variant needs an arm
+whose inner patterns all match anything, a Bool needs `true` and `false`,
+and anything else needs a final `_` or name. An arm that can never run is
+an error.
+
+**Values.** Tuples `(a, b)` have a type per position. `xs[i]` gives `T?`,
+none when out of range. Lambdas take one or more parameters,
+`(a, b) -> ...`. `fn(params) -> T { ... }` is an anonymous function.
+
+**Calls.** Type arguments may be written, `pair[Str]("a", "b")` and
+`json.parse[Config](text)`, or come from context. `.len()` works on a List
+or a Str, and `.push(x)` on a List held by a `var`; on a `let` it is an
+error. `print` shows any value interpolation accepts.
+
+**Entry point.** `fn main()` or `fn main(args: List[Str])` runs after the
+top-level statements, and may not have a result. `!` and `fail` in `main`
+stop the program, as at the top level.
+
 ## Built-ins
 
 ```
@@ -115,8 +147,13 @@ filter(List[T], (T) -> Bool) -> List[T]
 sort_by(List[T], (T) -> K) -> List[T]          K: Ord
 take(List[T], Int) -> List[T]
 map_par(List[T], (T) -> U) -> List[U]          inside together only
+sort(List[T]) -> List[T]                       T: Ord
+reduce(List[T], (T, T) -> T) -> T?
+first(List[T], (T) -> Bool) -> T?
+env(Str) -> Str?
+int.parse(Str) -> Int!
 fs.read(Str) -> Str!
-json.parse(Str) -> T!                          T from the expected type
+json.parse(Str) -> T!                          T from the expected type, or json.parse[T]
 ```
 
 If the function passed to `map`, `each`, `filter`, `sort_by` or `map_par`

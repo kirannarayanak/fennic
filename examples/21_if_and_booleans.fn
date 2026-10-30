@@ -1,0 +1,25 @@
+// if/else is an expression. and, or, not combine Bools.
+fn sign(n: Int) -> Str {
+  if n < 0 { "negative" } else if n == 0 { "zero" } else { "positive" }
+}
+
+print(sign(-4))
+print(sign(0))
+print(sign(9))
+
+let age = 34
+let member = true
+if age >= 18 and member {
+  print("adult member")
+}
+if age < 13 or age > 65 {
+  print("discount")
+} else {
+  print("full price")
+}
+print("{not member}")
+
+// Without else, if is a statement and gives nothing.
+var notes = 0
+if age > 30 { notes += 1 }
+print("notes: {notes}")

@@ -105,7 +105,13 @@ func dump(b *strings.Builder, n Node) {
 		}
 		list(head, n.Name.Name, n.Value)
 	case *AssignStmt:
-		list("=", n.Name.Name, n.Value)
+		op := "="
+		if n.Op != 0 {
+			op = n.Op.String()
+		}
+		list(op, n.Name.Name, n.Value)
+	case *ForStmt:
+		list("for", n.Var.Name, n.In, n.Body)
 	case *AssertStmt:
 		list("assert", n.Cond)
 	case *ExprStmt:
@@ -156,7 +162,15 @@ func dump(b *strings.Builder, n Node) {
 	case *PipeExpr:
 		list("|>", n.X, n.Call)
 	case *CallExpr:
-		args := []any{n.Fn}
+		fn := any(n.Fn)
+		if len(n.TypeArgs) > 0 {
+			var ts []string
+			for _, t := range n.TypeArgs {
+				ts = append(ts, typeString(t))
+			}
+			fn = Dump(n.Fn) + "[" + strings.Join(ts, ", ") + "]"
+		}
+		args := []any{fn}
 		for _, a := range n.Args {
 			args = append(args, a)
 		}
@@ -169,12 +183,34 @@ func dump(b *strings.Builder, n Node) {
 		list(op, n.X, n.Name.Name)
 	case *PropagateExpr:
 		list("!", n.X)
-	case *OrExpr:
+	case *ElseExpr:
 		if n.ErrName != nil {
-			list("or", n.X, "("+n.ErrName.Name+")", n.Fallback)
+			list("else", n.X, "("+n.ErrName.Name+")", n.Fallback)
 		} else {
-			list("or", n.X, n.Fallback)
+			list("else", n.X, n.Fallback)
 		}
+	case *IndexExpr:
+		list("index", n.X, n.Index)
+	case *TupleLit:
+		args := make([]any, len(n.Elems))
+		for i, e := range n.Elems {
+			args[i] = e
+		}
+		list("tuple", args...)
+	case *IfExpr:
+		if n.Else == nil {
+			list("if", n.Cond, n.Then)
+		} else {
+			list("if", n.Cond, n.Then, n.Else)
+		}
+	case *FailExpr:
+		list("fail", n.Msg)
+	case *FuncLit:
+		args := []any{paramsString(n.Params)}
+		if n.Result != nil {
+			args = append(args, "->", typeString(n.Result))
+		}
+		list("fn", append(args, n.Body)...)
 	case *WithExpr:
 		args := []any{n.X}
 		for _, f := range n.Fields {
@@ -203,10 +239,28 @@ func dump(b *strings.Builder, n Node) {
 		list("arm", n.Pattern, n.Body)
 	case *VariantPattern:
 		args := []any{n.Name.Name}
-		for _, id := range n.Binds {
-			args = append(args, id.Name)
+		for _, p := range n.Args {
+			args = append(args, p)
 		}
 		list("pattern", args...)
+	case *BindPattern:
+		b.WriteString(n.Name.Name)
+	case *WildcardPattern:
+		b.WriteString("_")
+	case *LiteralPattern:
+		dump(b, n.Value)
+	case *TuplePattern:
+		args := make([]any, len(n.Elems))
+		for i, p := range n.Elems {
+			args[i] = p
+		}
+		list("tuple", args...)
+	case *ListPattern:
+		args := make([]any, len(n.Elems))
+		for i, p := range n.Elems {
+			args[i] = p
+		}
+		list("list", args...)
 	case *TogetherExpr:
 		list("together", n.Body)
 	case *BadExpr:

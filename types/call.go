@@ -72,6 +72,9 @@ func (c *checker) checkArgsLoosely(args []ast.Expr, sc *scope, x *ctx) {
 
 // method checks `recv.name(args)`.
 func (c *checker) method(node ast.Node, fn *ast.FieldExpr, recv Type, args []ast.Expr, sc *scope, x *ctx) Type {
+	if t, handled := c.builtinMethod(node, fn, recv, args, sc, x); handled {
+		return t
+	}
 	if n, ok := prune(recv).(*Named); ok {
 		if s, ok := c.methods[n.Name][fn.Name.Name]; ok && s.self {
 			return c.callSig(node, s, args, sc, x)
@@ -136,6 +139,23 @@ func (c *checker) callSig(node ast.Node, s *sig, args []ast.Expr, sc *scope, x *
 	inst := map[*Param]Type{}
 	for _, tp := range s.tparams {
 		inst[tp] = c.fresh()
+	}
+	if targs := typeArgsOf(node); len(targs) > 0 {
+		if len(targs) != len(s.tparams) {
+			var names []string
+			for _, tp := range s.tparams {
+				names = append(names, tp.Name)
+			}
+			help := "remove the `[...]`"
+			if len(names) > 0 {
+				help = fmt.Sprintf("give one type for each of %s", strings.Join(names, ", "))
+			}
+			c.errorf(node, help, "`%s` takes %d type %s, but was given %d", s.name, len(s.tparams), plural2(len(s.tparams), "argument"), len(targs))
+		} else {
+			for i, tp := range s.tparams {
+				inst[tp] = c.typeOf(targs[i], nil)
+			}
+		}
 	}
 	if len(args) != len(s.params) {
 		c.checkArgsLoosely(args, sc, x)
@@ -213,6 +233,12 @@ func subst(t Type, m map[*Param]Type) Type {
 			ps[i] = subst(p, m)
 		}
 		return &Func{ps, subst(t.Result, m)}
+	case *Tuple:
+		es := make([]Type, len(t.Elems))
+		for i, e := range t.Elems {
+			es[i] = subst(e, m)
+		}
+		return &Tuple{es}
 	}
 	return t
 }
@@ -239,8 +265,15 @@ func (c *checker) construct(node ast.Node, v *Variant, args []ast.Expr, sc *scop
 
 func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope, x *ctx, want Type) Type {
 	arity := map[string]int{
-		"print": 1, "log.warn": 1, "len": 1, "first": 1, "last": 1, "sum": 1, "fs.read": 1, "json.parse": 1,
-		"map": 2, "each": 2, "filter": 2, "sort_by": 2, "take": 2, "map_par": 2,
+		"print": 1, "log.warn": 1, "len": 1, "last": 1, "sum": 1, "fs.read": 1, "json.parse": 1,
+		"sort": 1, "env": 1, "int.parse": 1,
+		"map": 2, "each": 2, "filter": 2, "sort_by": 2, "take": 2, "map_par": 2, "reduce": 2,
+	}
+	if name == "first" {
+		arity["first"] = 1
+		if len(args) == 2 {
+			arity["first"] = 2 // first(xs, pred): the first element that passes
+		}
 	}
 	n, known := arity[name]
 	if !known {
@@ -261,14 +294,50 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		}
 	}
 	switch name {
-	case "print", "log.warn":
+	case "log.warn":
 		strArg(0)
 		return Unit
+	case "print":
+		t := c.expr(args[0], sc, x, nil)
+		if f, ok := prune(t).(*Fail); ok {
+			c.mismatch(args[0], f.Elem, t, assignment{}, "`print` needs a value to show", "")
+			return Unit
+		}
+		c.interpolated(args[0], t) // print shows anything a string can hold
+		return Unit
+	case "env":
+		strArg(0)
+		return &Opt{Str}
+	case "int.parse":
+		strArg(0)
+		return &Fail{Int}
+	case "sort":
+		elem := c.listArg(name, args[0], sc, x)
+		if _, unknown := prune(elem).(*Var); !unknown && !ordered(elem) {
+			c.errorf(args[0], "sort by a key instead: `sort_by(x -> ...)`", "`sort` needs Ints, Floats or Strs, but this list holds %s", plural(elem))
+		}
+		return &List{elem}
+	case "reduce":
+		elem := c.listArg(name, args[0], sc, x)
+		ft := c.expr(args[1], sc, x, &Func{[]Type{elem, elem}, elem})
+		if f, ok := prune(ft).(*Func); ok && len(f.Params) == 2 {
+			if a := c.assign(elem, f.Result); !a.ok {
+				c.errorf(args[1], "", "`reduce` combines two %s into one, but this function gives %s", plural(elem), article(f.Result))
+			}
+		} else if !isBad(ft) {
+			c.errorf(args[1], "give it a function of two values, like `(a, b) -> a + b`", "`reduce` needs a function of two values")
+		}
+		return optional2(elem)
 	case "fs.read":
 		strArg(0)
 		return &Fail{Str}
 	case "json.parse":
 		strArg(0)
+		if targs := typeArgsOf(node); len(targs) == 1 {
+			want = c.typeOf(targs[0], nil)
+		} else if len(targs) > 1 {
+			c.errorf(node, "give one type: `json.parse[Config](text)`", "`json.parse` takes one type argument")
+		}
 		return c.jsonParse(node, want)
 	case "len":
 		t := c.expr(args[0], sc, x, nil)
@@ -292,7 +361,16 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		c.mismatch(args[0], Str, t, assignment{}, "`len` needs a List or a Str", "")
 		return Int
 	case "first", "last":
-		return optional2(c.listArg(name, args[0], sc, x))
+		elem := c.listArg(name, args[0], sc, x)
+		if len(args) == 2 {
+			ft := c.expr(args[1], sc, x, &Func{[]Type{elem}, Bool})
+			if f, ok := prune(ft).(*Func); ok && len(f.Params) == 1 {
+				if a := c.assign(Bool, f.Result); !a.ok {
+					c.errorf(args[1], "give it a function that returns a Bool, like `x -> x > 0`", "`first`'s function must return a Bool, but this one returns %s", article(f.Result))
+				}
+			}
+		}
+		return optional2(elem)
 	case "sum":
 		elem := c.listArg(name, args[0], sc, x)
 		switch p := prune(elem).(type) {
@@ -445,4 +523,49 @@ func jsonable(t Type) string {
 		return ""
 	}
 	return "it has no JSON form"
+}
+
+// typeArgsOf returns the explicit type arguments of a call, `f[T](...)`.
+func typeArgsOf(node ast.Node) []ast.TypeExpr {
+	if call, ok := node.(*ast.CallExpr); ok {
+		return call.TypeArgs
+	}
+	return nil
+}
+
+// builtinMethod checks the methods built-in types have: `.len()` on a List
+// or a Str, and `.push(x)` on a List.
+func (c *checker) builtinMethod(node ast.Node, fn *ast.FieldExpr, recv Type, args []ast.Expr, sc *scope, x *ctx) (Type, bool) {
+	r := prune(recv)
+	l, isList := r.(*List)
+	isStr := r == Str
+	if !isList && !isStr {
+		return nil, false
+	}
+	want := func(n int) bool {
+		if len(args) != n {
+			c.checkArgsLoosely(args, sc, x)
+			c.errorf(node, "", "`.%s` takes %d %s, but was given %d", fn.Name.Name, n, plural2(n, "argument"), len(args))
+			return false
+		}
+		return true
+	}
+	switch {
+	case fn.Name.Name == "len":
+		want(0)
+		return Int, true
+	case fn.Name.Name == "push" && isList:
+		if !want(1) {
+			return Unit, true
+		}
+		got := c.expr(args[0], sc, x, l.Elem)
+		if a := c.assign(l.Elem, got); !a.ok {
+			c.mismatch(args[0], l.Elem, got, a, "this list holds "+plural(l.Elem)+", so `.push` needs "+article(l.Elem), "push "+article(l.Elem))
+		}
+		if _, isIdent := fn.X.(*ast.Ident); !isIdent {
+			c.errorf(fn, "push onto a `var` that holds the list", "`.push` changes a list in place, so it needs a `var`, not %s", "this expression")
+		}
+		return Unit, true
+	}
+	return nil, false
 }

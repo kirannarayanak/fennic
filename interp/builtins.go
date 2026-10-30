@@ -7,8 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"unicode/utf8"
+
+	"github.com/kirannarayanak/fennic/ast"
 )
 
 // prelude is the scope above the program's globals: the built-in functions
@@ -21,11 +24,54 @@ func (in *Interp) prelude() *Env {
 	def("print", builtinPrint)
 	def("len", builtinLen)
 	def("first", func(in *Interp, c *callSite, args []Value) Value {
+		if len(args) == 2 {
+			// first(xs, pred): the first element that passes
+			l := in.listArg(c, "first", args, 2)
+			for _, e := range l.Elems {
+				r := in.call(args[1], []Value{e}, c)
+				if f, failed := r.(*Failure); failed {
+					return f
+				}
+				if r.(bool) {
+					return e
+				}
+			}
+			return None
+		}
 		l := in.listArg(c, "first", args, 1)
 		if len(l.Elems) == 0 {
 			return None
 		}
 		return l.Elems[0]
+	})
+	def("sort", func(in *Interp, c *callSite, args []Value) Value {
+		l := in.listArg(c, "sort", args, 1)
+		out := append([]Value(nil), l.Elems...)
+		sort.SliceStable(out, func(a, b int) bool {
+			r, _ := compare(out[a], out[b])
+			return r < 0
+		})
+		return &List{Elems: out}
+	})
+	def("reduce", func(in *Interp, c *callSite, args []Value) Value {
+		l := in.listArg(c, "reduce", args, 2)
+		if len(l.Elems) == 0 {
+			return None
+		}
+		acc := l.Elems[0]
+		for _, e := range l.Elems[1:] {
+			acc = in.call(args[1], []Value{acc, e}, c)
+			if f, failed := acc.(*Failure); failed {
+				return f
+			}
+		}
+		return acc
+	})
+	def("env", func(in *Interp, c *callSite, args []Value) Value {
+		if v, ok := os.LookupEnv(in.strArg(c, "env", args)); ok {
+			return v
+		}
+		return None
 	})
 	def("last", func(in *Interp, c *callSite, args []Value) Value {
 		l := in.listArg(c, "last", args, 1)
@@ -93,6 +139,16 @@ func (in *Interp) prelude() *Env {
 	env.Define("json", &Module{Name: "json", Members: map[string]Value{
 		"parse": &Builtin{Name: "json.parse", Fn: builtinParseJSON},
 	}}, false)
+	env.Define("int", &Module{Name: "int", Members: map[string]Value{
+		"parse": &Builtin{Name: "int.parse", Fn: func(in *Interp, c *callSite, args []Value) Value {
+			text := in.strArg(c, "int.parse", args)
+			n, err := strconv.ParseInt(text, 10, 64)
+			if err != nil {
+				return &Failure{Msg: fmt.Sprintf("%s is not a whole number", show(text))}
+			}
+			return n
+		}},
+	}}, false)
 	env.Define("log", &Module{Name: "log", Members: map[string]Value{
 		"warn": &Builtin{Name: "log.warn", Fn: func(in *Interp, c *callSite, args []Value) Value {
 			in.print(in.errw, "warn: "+in.strArg(c, "log.warn", args)+"\n")
@@ -128,8 +184,34 @@ func (in *Interp) strArg(c *callSite, name string, args []Value) string {
 }
 
 func builtinPrint(in *Interp, c *callSite, args []Value) Value {
-	in.print(in.out, in.strArg(c, "print", args)+"\n")
+	in.arity(c, "print", args, 1)
+	in.print(in.out, Display(args[0])+"\n")
 	return Unit
+}
+
+// builtinMethod runs the methods built-in types have: `.len()` on a List or
+// a Str, and `.push(x)`, which changes the `var` holding a List. A pushed
+// list is a new list, so another name holding the old one never sees it
+// change.
+func (in *Interp) builtinMethod(f *ast.FieldExpr, recv Value, argExprs []ast.Expr, env *Env, site *callSite) (Value, bool) {
+	switch r := recv.(type) {
+	case *List:
+		switch f.Name.Name {
+		case "len":
+			return int64(len(r.Elems)), true
+		case "push":
+			x := in.eval(argExprs[0], env, site.t)
+			id := f.X.(*ast.Ident)
+			grown := &List{Elems: append(append([]Value(nil), r.Elems...), x)}
+			env.Assign(id.Name, grown)
+			return Unit, true
+		}
+	case string:
+		if f.Name.Name == "len" {
+			return int64(utf8.RuneCountInString(r)), true
+		}
+	}
+	return nil, false
 }
 
 func builtinLen(in *Interp, c *callSite, args []Value) Value {

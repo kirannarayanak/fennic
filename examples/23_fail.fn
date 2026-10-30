@@ -1,0 +1,16 @@
+// fail stops a function with a failure that the caller must handle.
+fn parse_age(text: Str) -> Int! {
+  let n = int.parse(text)!
+  if n < 0 or n > 150 {
+    fail "age out of range: {n}"
+  }
+  n
+}
+
+print("{parse_age("42") else 0}")
+print("{parse_age("200") else err -> { print("rejected: {err}"); 0 }}")
+print("{parse_age("old") else err -> { print("rejected: {err}"); 0 }}")
+
+// A lambda that fails makes the whole map fail at the first failure.
+let ages = ["30", "x", "40"] |> map(t -> parse_age(t)!) else []
+print("ages: {ages}")

@@ -1,0 +1,6 @@
+error: this arm can never run: `Done` is already handled on line 8
+ --> 26_unreachable_arm.fn:9:5
+  |
+9 |     Done(0) -> "finished cleanly"
+  |     ^^^^^^^
+help: remove it, or move it above line 8

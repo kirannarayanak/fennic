@@ -40,8 +40,9 @@ func (in *Interp) runTest(td *ast.TestDecl) (failure *diag.Diagnostic) {
 		case *assertion:
 			failure = &diag.Diagnostic{Pos: r.stmt.Cond.Pos(), End: r.stmt.Cond.End(), Msg: in.assertMessage(r)}
 		case *propagation:
-			failure = &diag.Diagnostic{Pos: r.at.X.Pos(), End: r.at.X.End(), Msg: r.failure.Msg,
-				Help: "a failure passed on with `!` fails the test; handle it with `or` if it is expected"}
+			x := r.span()
+			failure = &diag.Diagnostic{Pos: x.Pos(), End: x.End(), Msg: r.failure.Msg,
+				Help: "an unhandled failure fails the test; handle it with `else` if it is expected"}
 		case *RuntimeError:
 			failure = &r.Diag
 		default:

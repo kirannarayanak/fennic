@@ -1,0 +1,14 @@
+fn main(args: List[Str]) {
+  match args {
+    [path]         -> tally(path, 10)
+    [path, n]      -> tally(path, int.parse(n) else 10)
+    _              -> print("usage: tally <file> [n]")
+  }
+}
+
+// ---- preamble: not part of the spec program ----
+// expect: args notes.txt 3
+// Program 15 calls tally(path, n), which it never declares.
+fn tally(path: Str, n: Int) {
+  print("top {n} words in {path}")
+}

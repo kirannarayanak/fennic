@@ -124,7 +124,15 @@ func (p *parser) errorHere(help, format string, args ...any) {
 // previous one. The lexer drops newlines inside brackets and after
 // operators; when the source is broken, this still finds the line break.
 func (p *parser) onNewLine() bool {
-	return p.i > 0 && p.prevEnd.Line > 0 && p.cur().Pos.Line > p.prevEnd.Line
+	if p.i == 0 || p.prevEnd.Line == 0 || p.cur().Pos.Line <= p.prevEnd.Line {
+		return false
+	}
+	// After an opening bracket a line break is only layout.
+	switch p.toks[p.i-1].Kind {
+	case token.LBrace, token.LParen, token.LBracket:
+		return false
+	}
+	return true
 }
 
 // found describes the current token for a "found ..." message. A token on a
@@ -263,6 +271,9 @@ func (p *parser) parseFile() *ast.File {
 func (p *parser) parseItem() ast.Item {
 	switch p.cur().Kind {
 	case token.Fn:
+		if p.peek(1).Kind == token.LParen {
+			return p.parseStmt() // an anonymous function: fn() { ... }
+		}
 		return p.parseFn()
 	case token.Type:
 		return p.parseTypeDecl()
@@ -418,10 +429,7 @@ func (p *parser) parseTypeDecl() ast.Item {
 		for {
 			vstart := p.cur().Pos
 			v := &ast.Variant{Name: p.ident("write a variant, like `| Circle(radius: Float)`")}
-			if !p.at(token.LParen) {
-				p.errorHere("give the variant its fields in parentheses, like `Circle(radius: Float)`",
-					"expected `(` after variant `%s`, found %s", v.Name.Name, p.found())
-			} else {
+			if p.at(token.LParen) {
 				open := p.next()
 				for !p.at(token.RParen) && !p.at(token.EOF) {
 					fstart := p.cur().Pos

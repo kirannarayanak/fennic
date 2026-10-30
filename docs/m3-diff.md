@@ -94,6 +94,9 @@ on its own. "Undefined" lists names the program uses but never declares.
 
 ## D. Decisions needed before building
 
+**All accepted as recommended.** They are recorded in `docs/m0-spec.md`
+under "Decisions recorded at M3 step 2".
+
 The first three are the collisions the spec names, with the recommendations
 from the M3 brief. The rest were found by the diff.
 
@@ -181,3 +184,23 @@ acceptance run.
   JSON never uses, such as backticks:
   `` `{"port": 80}` ``. Not decided; this is outside the spec, so it needs
   your call.
+
+## Progress
+
+**Core language: done.**
+- **Language constructs:** section A items 1–21. Items 17, 18 and 20 are
+  only partly done: their channel and `spawn` parts belong to concurrency.
+- **Built-ins:** `reduce`, `sort`, `first(pred)`, `int.parse` and `env`.
+- **Raw strings,** from section G.
+- **Spec programs 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15 and 16** run
+  as written in `examples/m0`.
+
+**Collections and built-ins: next.**
+- Maps (item 22).
+- The rest of section B.
+- JSON failures that name the line.
+- Spec programs 5, 11 and 17.
+
+**Concurrency and data formats: last.**
+- `spawn`, channels, `Date` and CSV (items 23–25).
+- The rewrite of programs 18, 19 and 20 without `http.get` (decision 3).

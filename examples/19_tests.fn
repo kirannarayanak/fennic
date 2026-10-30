@@ -27,6 +27,6 @@ test "missing email falls back" {
 }
 
 test "failures can be handled" {
-  let text = fs.read("data/missing.txt") or "empty"
+  let text = fs.read("data/missing.txt") else "empty"
   assert text == "empty"
 }

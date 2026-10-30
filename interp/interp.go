@@ -25,6 +25,8 @@ type Interp struct {
 
 	jsonTargets map[ast.Node]types.Type // what each json.parse call builds
 
+	inMain bool // running `fn main`, for the wording of errors
+
 	outMu sync.Mutex
 	out   io.Writer
 	errw  io.Writer
@@ -40,7 +42,16 @@ func (e *RuntimeError) Error() string { return e.Diag.Msg }
 // `together` or test boundary.
 type propagation struct {
 	failure *Failure
-	at      *ast.PropagateExpr
+	at      ast.Node // the *ast.PropagateExpr or *ast.FailExpr it came from
+}
+
+// span is the source to underline for a failure nobody handled: the value
+// `!` was applied to, or the whole `fail`.
+func (p *propagation) span() ast.Node {
+	if pe, ok := p.at.(*ast.PropagateExpr); ok {
+		return pe.X
+	}
+	return p.at
 }
 
 // assertion is a failed `assert`.
@@ -106,6 +117,10 @@ func New(file *ast.File, src, dir string, out, errw io.Writer) *Interp {
 					vt.Fields = append(vt.Fields, f.Name.Name)
 				}
 				in.variants[vt.Name] = vt
+				if len(vt.Fields) == 0 {
+					in.globals.Define(vt.Name, &Variant{Type: vt}, false) // a variant with no fields is a value
+					continue
+				}
 				in.globals.Define(vt.Name, in.constructor(vt), false)
 			}
 		case *ast.InterfaceDecl:
@@ -146,21 +161,63 @@ func (in *Interp) Run() (err error) {
 	return nil
 }
 
+// HasMain reports whether the program declares `fn main`.
+func (in *Interp) HasMain() bool {
+	f, ok := in.globals.vars["main"]
+	if !ok {
+		return false
+	}
+	fn, isFunc := f.val.(*Func)
+	return isFunc && fn.Decl.Recv == nil
+}
+
+// Main runs `fn main`, after Run has run the top level. args are the
+// command-line arguments after the file name, passed if main takes them.
+func (in *Interp) Main(args []string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = in.toError(r)
+		}
+	}()
+	in.inMain = true
+	d := in.globals.vars["main"].val.(*Func).Decl
+	env := NewEnv(in.globals)
+	if len(d.Params) == 1 {
+		list := &List{}
+		for _, a := range args {
+			list.Elems = append(list.Elems, a)
+		}
+		env.Define(d.Params[0].Name.Name, list, false)
+	}
+	in.evalBlock(d.Body, env, &task{ctx: context.Background()})
+	return nil
+}
+
 // toError turns a panic that escaped the program into the error to report.
 func (in *Interp) toError(r any) error {
 	switch r := r.(type) {
 	case *RuntimeError:
 		return r
 	case *propagation:
-		x := r.at.X
+		x := r.span()
+		if _, isFail := r.at.(*ast.FailExpr); isFail {
+			return &RuntimeError{diag.Diagnostic{
+				Pos: x.Pos(), End: x.End(), Msg: r.failure.Msg,
+				Help: "nothing handles this failure, so the program stops; call the code that fails with `else` to handle it",
+			}}
+		}
 		text := in.src[x.Pos().Offset:x.End().Offset]
 		fallback := r.failure.Fallback
 		if fallback == "" {
 			fallback = "<fallback value>"
 		}
+		where := "top-level code"
+		if in.inMain {
+			where = "`main`"
+		}
 		return &RuntimeError{diag.Diagnostic{
 			Pos: x.Pos(), End: x.End(), Msg: r.failure.Msg,
-			Help: fmt.Sprintf("`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `or`, for example `%s or %s`", text, fallback),
+			Help: fmt.Sprintf("`!` passes a failure to the caller, but %s has no caller. Handle it here with `else`, for example `%s else %s`", where, text, fallback),
 		}}
 	case *assertion:
 		return &RuntimeError{diag.Diagnostic{
@@ -254,13 +311,13 @@ func (in *Interp) callFunc(f *Func, self Value, args []Value, site *callSite) (r
 }
 
 func (in *Interp) callClosure(c *Closure, args []Value, site *callSite) (result Value) {
-	if len(args) != len(c.Lambda.Params) {
+	if len(args) != len(c.Params) {
 		in.fail(site.node, "", "this function takes %d %s, but was given %d",
-			len(c.Lambda.Params), plural(len(c.Lambda.Params), "argument", "arguments"), len(args))
+			len(c.Params), plural(len(c.Params), "argument", "arguments"), len(args))
 	}
 	env := NewEnv(c.Env)
-	for i, p := range c.Lambda.Params {
-		env.Define(p.Name, args[i], false)
+	for i, p := range c.Params {
+		env.Define(p, args[i], false)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -271,7 +328,11 @@ func (in *Interp) callClosure(c *Closure, args []Value, site *callSite) (result 
 			result = p.failure
 		}
 	}()
-	return in.eval(c.Lambda.Body, env, site.t)
+	v := in.eval(c.Body, env, site.t)
+	if c.NoResult {
+		return Unit
+	}
+	return v
 }
 
 func callShape(d *ast.FnDecl) string {

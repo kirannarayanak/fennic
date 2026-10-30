@@ -1,0 +1,13 @@
+type Status =
+  | Queued
+  | Done(code: Int)
+
+fn describe(s: Status) -> Str {
+  match s {
+    Queued  -> "waiting"
+    Done(c) -> "finished with {c}"
+    Done(0) -> "finished cleanly"
+  }
+}
+
+print(describe(Done(0)))

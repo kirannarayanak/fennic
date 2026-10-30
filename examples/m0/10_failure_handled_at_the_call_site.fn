@@ -1,0 +1,22 @@
+fn main() {
+  let port = parse_port(env("PORT") ?? "8080") else err -> {
+    log.warn("{err}, falling back to 8080")
+    8080
+  }
+  serve(port)
+}
+
+// ---- preamble: not part of the spec program ----
+// expect: env PORT=99999
+// Program 10 calls parse_port from program 9 and serve, which it never declares.
+fn parse_port(s: Str) -> Int! {
+  let n = int.parse(s)!
+  if n < 1 or n > 65535 {
+    fail "port out of range: {n}"
+  }
+  n
+}
+
+fn serve(port: Int) {
+  print("serving on port {port}")
+}

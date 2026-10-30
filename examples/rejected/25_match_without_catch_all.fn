@@ -1,0 +1,8 @@
+fn kind(n: Int) -> Str {
+  match n {
+    0 -> "zero"
+    1 -> "one"
+  }
+}
+
+print(kind(2))

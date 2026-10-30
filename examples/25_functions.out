@@ -1,0 +1,7 @@
+5
+largest: 9
+sorted: [1, 2, 3]
+first over 10: 12
+hello from a function value
+["x", "y"]
+point: Point { x: 3, y: 4 }

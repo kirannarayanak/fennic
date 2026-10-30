@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -22,37 +24,56 @@ func TestAcceptance(t *testing.T) {
 	defer os.Chdir(wd)
 
 	files, _ := filepath.Glob("*.fn")
-	if len(files) != 20 {
-		t.Fatalf("found %d examples, want 20", len(files))
+	if len(files) < 20 {
+		t.Fatalf("found %d examples, want at least the original 20", len(files))
 	}
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
-			src, err := os.ReadFile(f)
-			if err != nil {
-				t.Fatal(err)
-			}
-			want, err := os.ReadFile(strings.TrimSuffix(f, ".fn") + ".out")
-			if err != nil {
-				t.Fatal(err)
-			}
-			mode, wantCode := "run", 0
-			first, _, _ := strings.Cut(string(src), "\n")
-			switch strings.TrimSpace(first) {
-			case "// expect: test":
-				mode = "test"
-			case "// expect: exit 1":
-				wantCode = 1
-			}
-
-			var out bytes.Buffer // stdout and stderr together, as a terminal shows them
-			code := Main([]string{mode, f}, &out, &out)
-			if code != wantCode {
-				t.Errorf("exit status %d, want %d", code, wantCode)
-			}
-			if got := out.String(); got != string(want) {
-				t.Errorf("output differs\n--- got\n%s--- want\n%s", got, want)
-			}
+			runExpecting(t, f)
 		})
+	}
+}
+
+// runExpecting runs one acceptance program and compares its output with
+// the .out file beside it. Lines starting `// expect:` set how it runs:
+// `test` runs its test blocks, `exit 1` expects a failure, `args a b` passes
+// command-line arguments, and `env NAME=value` sets an environment variable.
+func runExpecting(t *testing.T, f string) {
+	t.Helper()
+	src, err := os.ReadFile(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.ReadFile(strings.TrimSuffix(f, ".fn") + ".out")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mode, wantCode := "run", 0
+	var extra []string
+	for _, line := range strings.Split(string(src), "\n") {
+		directive, ok := strings.CutPrefix(strings.TrimSpace(line), "// expect: ")
+		if !ok {
+			continue
+		}
+		switch {
+		case directive == "test":
+			mode = "test"
+		case directive == "exit 1":
+			wantCode = 1
+		case strings.HasPrefix(directive, "args "):
+			extra = strings.Fields(strings.TrimPrefix(directive, "args "))
+		case strings.HasPrefix(directive, "env "):
+			name, value, _ := strings.Cut(strings.TrimPrefix(directive, "env "), "=")
+			t.Setenv(name, value)
+		}
+	}
+	var out bytes.Buffer // stdout and stderr together, as a terminal shows them
+	code := Main(append([]string{mode, f}, extra...), &out, &out)
+	if code != wantCode {
+		t.Errorf("exit status %d, want %d", code, wantCode)
+	}
+	if got := out.String(); got != string(want) {
+		t.Errorf("output differs\n--- got\n%s--- want\n%s", got, want)
 	}
 }
 
@@ -125,8 +146,8 @@ func TestRejected(t *testing.T) {
 	defer os.Chdir(wd)
 
 	files, _ := filepath.Glob("*.fn")
-	if len(files) != 20 {
-		t.Fatalf("found %d rejected programs, want 20", len(files))
+	if len(files) < 20 {
+		t.Fatalf("found %d rejected programs, want at least the original 20", len(files))
 	}
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
@@ -149,7 +170,7 @@ func TestRejected(t *testing.T) {
 func TestTypedRuntime(t *testing.T) {
 	config := "type Config {\n  name: Str\n  port: Int\n  tags: List[Str]\n  owner: Str?\n}\n" +
 		"fn parse(text: Str) -> Config! { json.parse(text)! }\n" +
-		"fn report(text: Str) { let c = parse(text) or e -> { print(\"{e}\"); Config { name: \"\", port: 0, tags: [], owner: none } } }\n"
+		"fn report(text: Str) { let c = parse(text) else e -> { print(\"{e}\"); Config { name: \"\", port: 0, tags: [], owner: none } } }\n"
 	cases := []struct {
 		name string
 		src  string
@@ -170,10 +191,10 @@ func TestTypedRuntime(t *testing.T) {
 			`report("\{\"name\": \"a\", \"port\": 1, \"tags\": [1]}")`,
 			"the JSON does not fit Config: expected a Str at `tags[0]`, but the JSON has a number\n"},
 		{"map stops at the first failure",
-			`let xs = ["missing.txt", "also-missing.txt"] |> map(f -> fs.read(f)!) or e -> ["{e}"]` + "\n" + `print("{xs}")`,
+			`let xs = ["missing.txt", "also-missing.txt"] |> map(f -> fs.read(f)!) else e -> ["{e}"]` + "\n" + `print("{xs}")`,
 			"[\"cannot read \\\"missing.txt\\\": file not found\"]\n"},
 		{"each stops at the first failure",
-			`["missing.txt", "x"] |> each(f -> print(fs.read(f)!)) or e -> print("stopped: {e}")`,
+			`["missing.txt", "x"] |> each(f -> print(fs.read(f)!)) else e -> print("stopped: {e}")`,
 			"stopped: cannot read \"missing.txt\": file not found\n"},
 	}
 	for _, c := range cases {
@@ -187,6 +208,50 @@ func TestTypedRuntime(t *testing.T) {
 			if code != 0 || out.String() != c.want {
 				t.Errorf("exit %d\ngot:\n%s\nwant:\n%s", code, out.String(), c.want)
 			}
+		})
+	}
+}
+
+// TestM0 is the M3 definition of done: the programs of docs/m0-spec.md
+// run as written. Each file in examples/m0 starts with a program's text,
+// byte for byte, followed by a preamble; see examples/m0/README.md.
+func TestM0(t *testing.T) {
+	spec, err := os.ReadFile("../docs/m0-spec.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	programs := map[string]string{}
+	for _, m := range regexp.MustCompile("(?s)### (\\d+)\\. [^\\n]*\\n\\n```\\n(.*?)```").FindAllStringSubmatch(string(spec), -1) {
+		programs[fmt.Sprintf("%02s", m[1])] = m[2]
+	}
+	if len(programs) != 20 {
+		t.Fatalf("found %d programs in the spec, want 20", len(programs))
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir("../examples/m0"); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(wd)
+
+	files, _ := filepath.Glob("*.fn")
+	if len(files) == 0 {
+		t.Fatal("no programs in examples/m0")
+	}
+	for _, f := range files {
+		t.Run(f, func(t *testing.T) {
+			src, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text, _, _ := strings.Cut(string(src), "\n// ---- preamble: not part of the spec program ----\n")
+			if want := programs[f[:2]]; text != want {
+				t.Fatalf("the program text differs from docs/m0-spec.md\n--- file\n%s--- spec\n%s", text, want)
+			}
+			runExpecting(t, f)
 		})
 	}
 }

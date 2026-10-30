@@ -14,5 +14,5 @@ print("squares: {squares}")
 
 let attempt = together {
   ["data/a.txt", "data/missing.txt"] |> map_par(f -> fs.read(f)!)
-} or err -> { print("together failed: {err}"); [] }
+} else err -> { print("together failed: {err}"); [] }
 print("got {len(attempt)} pages")

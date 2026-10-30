@@ -1,0 +1,19 @@
+type Status =
+  | Queued
+  | Running(pid: Int)
+  | Done(code: Int)
+
+fn describe(s: Status) -> Str {
+  match s {
+    Queued       -> "waiting"
+    Running(pid) -> "running as {pid}"
+    Done(0)      -> "finished cleanly"
+    Done(c)      -> "failed with {c}"
+  }
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 8 has no main.
+fn main() {
+  [Queued, Running(41), Done(0), Done(3)] |> each(s -> print(describe(s)))
+}

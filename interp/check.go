@@ -96,7 +96,13 @@ func (c *checker) stmt(s ast.Stmt) {
 		c.declare(s.Name.Name, &decl{let: s})
 	case *ast.AssignStmt:
 		c.expr(s.Value)
-		c.assign(s)
+		c.assign(s.Name, "assign to")
+	case *ast.ForStmt:
+		c.expr(s.In)
+		c.push()
+		c.declare(s.Var.Name, &decl{kind: "a loop variable"})
+		c.block(s.Body)
+		c.pop()
 	case *ast.AssertStmt:
 		c.expr(s.Cond)
 	case *ast.ExprStmt:
@@ -104,19 +110,21 @@ func (c *checker) stmt(s ast.Stmt) {
 	}
 }
 
-func (c *checker) assign(s *ast.AssignStmt) {
-	name := s.Name.Name
+// assign checks that id names a `var`. verb says what is being done to it:
+// "assign to", or "push onto".
+func (c *checker) assign(id *ast.Ident, verb string) {
+	name := id.Name
 	d := c.lookup(name)
 	switch {
 	case d == nil:
-		c.report(s.Name, fmt.Sprintf("declare it first: `var %s = ...`", name), "`%s` is not defined", name)
+		c.report(id, fmt.Sprintf("declare it first: `var %s = ...`", name), "`%s` is not defined", name)
 	case d.let != nil && !d.let.Mutable:
 		rest := c.src[d.let.Name.Pos().Offset:d.let.End().Offset]
-		c.report(s.Name, fmt.Sprintf("change line %d to `var %s` if `%s` needs to change", d.let.Pos().Line, rest, name),
-			"cannot assign to `%s` because it was declared with `let`", name)
+		c.report(id, fmt.Sprintf("change line %d to `var %s` if `%s` needs to change", d.let.Pos().Line, rest, name),
+			"cannot %s `%s` because it was declared with `let`", verb, name)
 	case d.let == nil:
-		c.report(s.Name, fmt.Sprintf("make a changeable copy first: `var %s_ = %s`", name, name),
-			"cannot assign to `%s` because it is %s", name, d.kind)
+		c.report(id, fmt.Sprintf("make a changeable copy first: `var %s_ = %s`", name, name),
+			"cannot %s `%s` because it is %s", verb, name, d.kind)
 	}
 }
 
@@ -152,15 +160,43 @@ func (c *checker) expr(e ast.Expr) {
 		for _, a := range e.Args {
 			c.expr(a)
 		}
+		// `xs.push(x)` changes xs, so xs must be a `var`.
+		if f, ok := e.Fn.(*ast.FieldExpr); ok && f.Name.Name == "push" {
+			if id, ok := f.X.(*ast.Ident); ok && c.lookup(id.Name) != nil {
+				c.assign(id, "push onto")
+			}
+		}
+	case *ast.IndexExpr:
+		c.expr(e.X)
+		c.expr(e.Index)
+	case *ast.TupleLit:
+		for _, x := range e.Elems {
+			c.expr(x)
+		}
+	case *ast.IfExpr:
+		c.expr(e.Cond)
+		c.block(e.Then)
+		if e.Else != nil {
+			c.expr(e.Else)
+		}
+	case *ast.FailExpr:
+		c.expr(e.Msg)
+	case *ast.FuncLit:
+		c.push()
+		for _, p := range e.Params {
+			c.declare(p.Name.Name, &decl{kind: "a parameter"})
+		}
+		c.block(e.Body)
+		c.pop()
 	case *ast.FieldExpr:
 		c.expr(e.X)
 	case *ast.PropagateExpr:
 		c.expr(e.X)
-	case *ast.OrExpr:
+	case *ast.ElseExpr:
 		c.expr(e.X)
 		c.push()
 		if e.ErrName != nil {
-			c.declare(e.ErrName.Name, &decl{kind: "the error from `or`"})
+			c.declare(e.ErrName.Name, &decl{kind: "the error from `else`"})
 		}
 		c.expr(e.Fallback)
 		c.pop()
@@ -177,7 +213,7 @@ func (c *checker) expr(e ast.Expr) {
 		c.expr(e.X)
 		for _, arm := range e.Arms {
 			c.push()
-			for _, b := range arm.Pattern.Binds {
+			for _, b := range ast.PatternBinds(arm.Pattern) {
 				c.declare(b.Name, &decl{kind: "a name bound by `match`"})
 			}
 			c.expr(arm.Body)

@@ -46,6 +46,11 @@ func (c *checker) expr(e ast.Expr, sc *scope, x *ctx, want Type) Type {
 	case *ast.FieldExpr:
 		return c.field(e, sc, x)
 	case *ast.UnaryExpr:
+		if e.Op == token.Not {
+			t := c.expr(e.X, sc, x, Bool)
+			c.needBool(e.X, t, "`not`")
+			return Bool
+		}
 		t := c.expr(e.X, sc, x, nil)
 		switch prune(t).(type) {
 		case *Bad:
@@ -67,8 +72,30 @@ func (c *checker) expr(e ast.Expr, sc *scope, x *ctx, want Type) Type {
 		return c.call(e, e.Call.Fn, e.Call.Args, e.X, sc, x, want)
 	case *ast.PropagateExpr:
 		return c.propagate(e, sc, x, want)
-	case *ast.OrExpr:
-		return c.or(e, sc, x, want)
+	case *ast.ElseExpr:
+		return c.elseExpr(e, sc, x, want)
+	case *ast.IfExpr:
+		return c.ifExpr(e, sc, x, want)
+	case *ast.FailExpr:
+		return c.fail(e, sc, x)
+	case *ast.IndexExpr:
+		return c.index(e, sc, x)
+	case *ast.TupleLit:
+		var wantElems []Type
+		if tt, ok := prune(want).(*Tuple); ok && len(tt.Elems) == len(e.Elems) {
+			wantElems = tt.Elems
+		}
+		elems := make([]Type, len(e.Elems))
+		for i, el := range e.Elems {
+			var w Type
+			if wantElems != nil {
+				w = wantElems[i]
+			}
+			elems[i] = c.expr(el, sc, x, w)
+		}
+		return &Tuple{elems}
+	case *ast.FuncLit:
+		return c.funcLit(e, sc, x)
 	case *ast.LambdaExpr:
 		return c.lambda(e, sc, x, want)
 	case *ast.Block:
@@ -86,7 +113,7 @@ func (c *checker) interpolated(p ast.Expr, t Type) {
 	switch g := prune(t).(type) {
 	case *Fail:
 		src := c.text(p)
-		c.errorf(p, fmt.Sprintf("handle the failure first: `%s or %s` gives a fallback, and `%s!` passes it on", src, fallback(g.Elem), src),
+		c.errorf(p, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, fallback(g.Elem), src),
 			"%s cannot go in a string until its failure is handled", article(t))
 	case *Func:
 		c.errorf(p, "call the function and interpolate its result", "a function cannot go in a string")
@@ -101,13 +128,21 @@ func (c *checker) interpolated(p ast.Expr, t Type) {
 var builtins = map[string]bool{
 	"print": true, "len": true, "first": true, "last": true, "sum": true, "map": true,
 	"each": true, "filter": true, "sort_by": true, "take": true, "map_par": true,
+	"sort": true, "reduce": true, "env": true,
 }
 
-var modules = map[string]bool{"fs": true, "json": true, "log": true}
+var modules = map[string]bool{"fs": true, "json": true, "log": true, "int": true}
 
 func (c *checker) ident(e *ast.Ident, sc *scope) Type {
+	if e.Name == "_" {
+		c.errorf(e, "give the value a name to use it", "`_` stands for a value that is not used, so it cannot be read")
+		return bad
+	}
 	if b, ok := sc.lookup(e.Name); ok {
 		return b.t
+	}
+	if v, ok := c.variant[e.Name]; ok && len(v.Fields) == 0 {
+		return v.Sum
 	}
 	if s, ok := c.funcs[e.Name]; ok {
 		if len(s.tparams) > 0 {
@@ -293,7 +328,7 @@ func (c *checker) member(e ast.Node, recv Type, xe ast.Expr, name *ast.Ident, op
 	}
 	if f, ok := r.(*Fail); ok {
 		src := c.text(xe)
-		c.errorf(xe, fmt.Sprintf("handle the failure first: `%s!` passes it on, and `or` gives a fallback", src),
+		c.errorf(xe, fmt.Sprintf("handle the failure first: `%s!` passes it on, and `else` gives a fallback", src),
 			"`%s` is %s, which might be a failure, so `.%s` cannot be read yet", src, article(recv), name.Name)
 		_ = f
 		return bad
@@ -403,8 +438,11 @@ func distance(a, b string) int {
 }
 
 func (c *checker) binary(e *ast.BinaryExpr, sc *scope, x *ctx, want Type) Type {
-	if e.Op == token.QQ {
+	switch e.Op {
+	case token.QQ:
 		return c.coalesce(e, sc, x, want)
+	case token.And, token.Or:
+		return c.logical(e, sc, x)
 	}
 	l := c.expr(e.Left, sc, x, nil)
 	r := c.expr(e.Right, sc, x, nil)
@@ -420,12 +458,24 @@ func (c *checker) binary(e *ast.BinaryExpr, sc *scope, x *ctx, want Type) Type {
 	}{{l, e.Left}, {r, e.Right}} {
 		if f, ok := prune(side.t).(*Fail); ok {
 			src := c.text(side.n)
-			c.errorf(side.n, fmt.Sprintf("handle the failure first: `%s or %s` gives a fallback, and `%s!` passes it on", src, fallback(f.Elem), src),
+			c.errorf(side.n, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, fallback(f.Elem), src),
 				"`%s` needs values, but this is %s, which might be a failure", e.Op, article(side.t))
 			return bad
 		}
 	}
 	switch e.Op {
+	case token.DotDot:
+		c.numberLike(l, r)
+		for _, side := range []struct {
+			t Type
+			n ast.Expr
+		}{{l, e.Left}, {r, e.Right}} {
+			if prune(side.t) != Int {
+				c.errorf(side.n, "", "`..` makes a range of Ints, but this is %s", article(side.t))
+				return bad
+			}
+		}
+		return &List{Int}
 	case token.Eq, token.NotEq:
 		if _, ok := prune(l).(*Func); ok {
 			c.errorf(e, "compare the results of calling them instead", "functions cannot be compared with `%s`", e.Op)
@@ -555,8 +605,8 @@ func (c *checker) propagate(e *ast.PropagateExpr, sc *scope, x *ctx, want Type) 
 		case ctxTogether, ctxTest, ctxTop:
 			return f.Elem
 		case ctxFn:
-			if _, can := prune(k.fn.result).(*Fail); !can {
-				c.errorf(e, fmt.Sprintf("change its result type to `-> %s!`, or handle the failure here with `or`", String(k.fn.result)),
+			if _, can := prune(k.fn.result).(*Fail); !can && !k.fn.isMain() {
+				c.errorf(e, fmt.Sprintf("change its result type to `-> %s!`, or handle the failure here with `else`", String(k.fn.result)),
 					"`!` passes a failure on, but `%s` cannot fail", k.fn.name)
 			}
 			return f.Elem
@@ -565,25 +615,25 @@ func (c *checker) propagate(e *ast.PropagateExpr, sc *scope, x *ctx, want Type) 
 	return f.Elem
 }
 
-// or checks `x or fallback` and `x or err -> handler`.
-func (c *checker) or(e *ast.OrExpr, sc *scope, x *ctx, want Type) Type {
+// elseExpr checks `x else fallback` and `x else err -> handler`.
+func (c *checker) elseExpr(e *ast.ElseExpr, sc *scope, x *ctx, want Type) Type {
 	var wantX Type
 	if want != nil {
 		wantX = failable(want)
 	}
 	t := c.expr(e.X, sc, x, wantX)
-	f, ok := prune(t).(*Fail)
-	if !ok {
-		c.expr(e.Fallback, sc, x, nil)
-		if !isBad(t) {
-			c.errorSpan(e.X.End(), e.End(), "remove `or` and its fallback", "`%s` cannot fail, so `or` never runs", c.text(e.X))
-		}
-		return t
-	}
 	inner := sc
 	if e.ErrName != nil {
 		inner = newScope(sc)
 		inner.vars[e.ErrName.Name] = &binding{t: Error}
+	}
+	f, ok := prune(t).(*Fail)
+	if !ok {
+		c.expr(e.Fallback, inner, x, nil)
+		if !isBad(t) {
+			c.errorSpan(e.X.End(), e.End(), "remove `else` and its fallback", "`%s` cannot fail, so `else` never runs", c.text(e.X))
+		}
+		return t
 	}
 	got := c.expr(e.Fallback, inner, x, f.Elem)
 	if a := c.assign(f.Elem, got); !a.ok {
@@ -593,7 +643,7 @@ func (c *checker) or(e *ast.OrExpr, sc *scope, x *ctx, want Type) Type {
 				at = last
 			}
 		}
-		c.mismatch(at, f.Elem, got, a, "the fallback after `or` must be "+article(f.Elem), "give a fallback of the same type as the value")
+		c.mismatch(at, f.Elem, got, a, "the fallback after `else` must be "+article(f.Elem), "give a fallback of the same type as the value")
 	}
 	return f.Elem
 }
@@ -630,47 +680,34 @@ func (c *checker) lambda(e *ast.LambdaExpr, sc *scope, x *ctx, want Type) Type {
 func (c *checker) match(e *ast.MatchExpr, sc *scope, x *ctx, want Type) Type {
 	t := c.expr(e.X, sc, x, nil)
 	head := ast.Span{From: e.Pos(), To: e.X.End()}
-	n, ok := prune(t).(*Named)
-	if !ok || !n.IsSum() {
-		if !isBad(t) {
-			c.errorf(e.X, "", "`match` takes apart a sum type, but this is %s", article(t))
-		}
-		for _, arm := range e.Arms {
-			c.expr(arm.Body, sc, x, want)
-		}
-		return bad
-	}
-	seen := map[string]bool{}
 	var result Type
+	var total ast.Node               // the first arm that matches anything
+	covered := map[string]ast.Node{} // variant name -> the arm that handles all of it
+	seenTrue, seenFalse := false, false
 	for _, arm := range e.Arms {
 		inner := newScope(sc)
-		name := arm.Pattern.Name.Name
-		var v *Variant
-		for _, cand := range n.Variants {
-			if cand.Name == name {
-				v = cand
-			}
-		}
+		c.pattern(arm.Pattern, t, inner)
 		switch {
-		case v == nil:
-			c.errorf(arm.Pattern.Name, "its variants are "+variantList(n), "`%s` has no variant `%s`", n.Name, name)
-			for _, b := range arm.Pattern.Binds {
-				inner.vars[b.Name] = &binding{t: bad}
-			}
-		case len(arm.Pattern.Binds) != len(v.Fields):
-			c.errorf(arm.Pattern, fmt.Sprintf("write `%s(%s)`", v.Name, fieldNames(v.Fields)),
-				"`%s` has %d %s, but the pattern names %d", v.Name, len(v.Fields), plural2(len(v.Fields), "field"), len(arm.Pattern.Binds))
-			seen[name] = true // the arm is wrong, but it does handle the variant
-			for _, b := range arm.Pattern.Binds {
-				inner.vars[b.Name] = &binding{t: bad}
-			}
+		case total != nil:
+			c.errorf(arm.Pattern, fmt.Sprintf("remove it, or move it above line %d", total.Pos().Line),
+				"this arm can never run: the arm on line %d already matches everything", total.Pos().Line)
+		case irrefutable(arm.Pattern):
+			total = arm.Pattern
 		default:
-			if seen[name] {
-				c.errorf(arm.Pattern.Name, "remove one of the arms", "`%s` is matched twice; only the first arm can run", name)
+			if vp, ok := arm.Pattern.(*ast.VariantPattern); ok {
+				name := vp.Name.Name
+				if prev, done := covered[name]; done {
+					c.errorf(arm.Pattern, fmt.Sprintf("remove it, or move it above line %d", prev.Pos().Line),
+						"this arm can never run: `%s` is already handled on line %d", name, prev.Pos().Line)
+				} else if allIrrefutable(vp.Args) {
+					covered[name] = arm.Pattern
+				}
 			}
-			seen[name] = true
-			for i, b := range arm.Pattern.Binds {
-				inner.vars[b.Name] = &binding{t: v.Fields[i].Type}
+			if lp, ok := arm.Pattern.(*ast.LiteralPattern); ok {
+				if b, isBool := lp.Value.(*ast.BoolLit); isBool {
+					seenTrue = seenTrue || b.Value
+					seenFalse = seenFalse || !b.Value
+				}
 			}
 		}
 		if result == nil {
@@ -688,28 +725,138 @@ func (c *checker) match(e *ast.MatchExpr, sc *scope, x *ctx, want Type) Type {
 			c.errorf(at, "make every arm of a `match` give the same type", "this arm gives %s, but the first arm gives %s", article(got), article(result))
 		}
 	}
-	var missing []*Variant
-	for _, v := range n.Variants {
-		if !seen[v.Name] {
-			missing = append(missing, v)
+	if total == nil && !isBad(t) {
+		n, isSum := prune(t).(*Named)
+		switch {
+		case isSum && n.IsSum():
+			var names, arms []string
+			for _, v := range n.Variants {
+				if _, ok := covered[v.Name]; !ok {
+					names = append(names, "`"+v.Name+"`")
+					arms = append(arms, "`"+variantPatternText(v)+" -> ...`")
+				}
+			}
+			if len(names) > 0 {
+				help := "add an arm: " + arms[0]
+				if len(arms) > 1 {
+					help = "add arms: " + strings.Join(arms, ", ")
+				}
+				c.errorf(head, help, "this `match` does not handle %s", joinOr(names))
+			}
+		case prune(t) == Bool && seenTrue && seenFalse:
+		default:
+			c.errorf(head, "add `_ -> ...` as the last arm to handle the rest", "this `match` does not handle every value")
 		}
-	}
-	if len(missing) > 0 {
-		var names, arms []string
-		for _, v := range missing {
-			names = append(names, "`"+v.Name+"`")
-			arms = append(arms, fmt.Sprintf("`%s(%s) -> ...`", v.Name, fieldNames(v.Fields)))
-		}
-		help := "add an arm: " + arms[0]
-		if len(arms) > 1 {
-			help = "add arms: " + strings.Join(arms, ", ")
-		}
-		c.errorf(head, help, "this `match` does not handle %s", joinOr(names))
 	}
 	if result == nil {
 		return bad
 	}
 	return result
+}
+
+func variantPatternText(v *Variant) string {
+	if len(v.Fields) == 0 {
+		return v.Name
+	}
+	return fmt.Sprintf("%s(%s)", v.Name, fieldNames(v.Fields))
+}
+
+// irrefutable reports whether a pattern matches every value of its type.
+func irrefutable(p ast.Pattern) bool {
+	switch p := p.(type) {
+	case *ast.WildcardPattern, *ast.BindPattern:
+		return true
+	case *ast.TuplePattern:
+		return allIrrefutable(p.Elems)
+	}
+	return false
+}
+
+func allIrrefutable(ps []ast.Pattern) bool {
+	for _, p := range ps {
+		if !irrefutable(p) {
+			return false
+		}
+	}
+	return true
+}
+
+// pattern checks a pattern against the type of the value it matches, and
+// binds its names in sc.
+func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
+	switch p := p.(type) {
+	case *ast.WildcardPattern:
+	case *ast.BindPattern:
+		sc.vars[p.Name.Name] = &binding{t: t}
+	case *ast.LiteralPattern:
+		lt := c.expr(p.Value, sc, nil, nil)
+		if !unify(t, lt) && !isBad(t) {
+			c.errorf(p, "", "this pattern is %s, but the value matched is %s", article(lt), article(t))
+		}
+	case *ast.TuplePattern:
+		elems := make([]Type, len(p.Elems))
+		for i := range elems {
+			elems[i] = c.fresh()
+		}
+		if !unify(t, &Tuple{elems}) {
+			if !isBad(t) {
+				c.errorf(p, "", "this pattern is a tuple of %d, but the value matched is %s", len(p.Elems), article(t))
+			}
+			for i := range elems {
+				elems[i] = bad
+			}
+		}
+		for i, ep := range p.Elems {
+			c.pattern(ep, elems[i], sc)
+		}
+	case *ast.ListPattern:
+		elem := Type(c.fresh())
+		if !unify(t, &List{elem}) {
+			if !isBad(t) {
+				c.errorf(p, "", "this pattern is a list, but the value matched is %s", article(t))
+			}
+			elem = bad
+		}
+		for _, ep := range p.Elems {
+			c.pattern(ep, elem, sc)
+		}
+	case *ast.VariantPattern:
+		name := p.Name.Name
+		var v *Variant
+		n, isSum := prune(t).(*Named)
+		switch {
+		case isSum && n.IsSum():
+			for _, cand := range n.Variants {
+				if cand.Name == name {
+					v = cand
+				}
+			}
+			if v == nil {
+				c.errorf(p.Name, "its variants are "+variantList(n), "`%s` has no variant `%s`", n.Name, name)
+			}
+		case isBad(t):
+		default:
+			if gv, ok := c.variant[name]; ok && unify(t, gv.Sum) {
+				v = gv
+			} else if ok {
+				c.errorf(p, "", "this pattern is %s, but the value matched is %s", Article(gv.Sum.Name), article(t))
+			} else {
+				c.errorf(p.Name, "declare it in a sum type, like `type T = | "+name+"(...)`", "there is no variant `%s`", name)
+			}
+		}
+		if v != nil && len(p.Args) != len(v.Fields) {
+			c.errorf(p, fmt.Sprintf("write `%s`", variantPatternText(v)),
+				"`%s` has %d %s, but the pattern names %d", v.Name, len(v.Fields), plural2(len(v.Fields), "field"), len(p.Args))
+			v = nil
+		}
+		for i, ap := range p.Args {
+			ft := Type(bad)
+			if v != nil {
+				ft = v.Fields[i].Type
+			}
+			c.pattern(ap, ft, sc)
+		}
+	}
 }
 
 func variantList(n *Named) string {
@@ -731,4 +878,139 @@ func joinWith(names []string, word string) string {
 		return names[0]
 	}
 	return strings.Join(names[:len(names)-1], ", ") + " " + word + " " + names[len(names)-1]
+}
+
+func (c *checker) needBool(n ast.Expr, t Type, what string) {
+	if a := c.assign(Bool, t); !a.ok {
+		c.mismatch(n, Bool, t, a, what+" needs a Bool", "compare it to make a Bool, like `x > 0`")
+	}
+}
+
+// logical checks `a and b` and `a or b`.
+func (c *checker) logical(e *ast.BinaryExpr, sc *scope, x *ctx) Type {
+	l := c.expr(e.Left, sc, x, Bool)
+	if f, ok := prune(l).(*Fail); ok && e.Op == token.Or {
+		// The fallback used to be written `or`.
+		c.expr(e.Right, sc, x, nil)
+		c.errorf(e, fmt.Sprintf("to give a fallback for a failure, write `else`: `%s else %s`", c.text(e.Left), c.text(e.Right)),
+			"`or` combines two Bools, but this is %s, which might be a failure", article(f))
+		return bad
+	}
+	r := c.expr(e.Right, sc, x, Bool)
+	c.needBool(e.Left, l, "`"+e.Op.String()+"`")
+	c.needBool(e.Right, r, "`"+e.Op.String()+"`")
+	return Bool
+}
+
+// ifExpr checks `if c { ... } else { ... }`. Without an else it gives
+// nothing; with one, both branches give the same type.
+func (c *checker) ifExpr(e *ast.IfExpr, sc *scope, x *ctx, want Type) Type {
+	ct := c.expr(e.Cond, sc, x, Bool)
+	c.needBool(e.Cond, ct, "`if`")
+	if e.Else == nil {
+		c.block(e.Then, sc, x, nil)
+		return Unit
+	}
+	then := c.block(e.Then, sc, x, want)
+	if want == nil {
+		if _, never := prune(then).(*Var); !never {
+			want = then
+		}
+	}
+	other := c.expr(e.Else, sc, x, want)
+	if a := c.assign(then, other); !a.ok {
+		if a2 := c.assign(other, then); a2.ok {
+			return other // the then branch is the one that cannot finish, as with fail
+		}
+		at := ast.Node(e.Else)
+		if b, ok := e.Else.(*ast.Block); ok {
+			if last := lastExpr(b); last != nil {
+				at = last
+			}
+		}
+		c.errorf(at, "make both branches of the `if` give the same type", "this branch gives %s, but the first branch gives %s", article(other), article(then))
+	}
+	return then
+}
+
+// fail checks `fail "message"`. It never gives a value, so its type is
+// whatever the place it stands in needs.
+func (c *checker) fail(e *ast.FailExpr, sc *scope, x *ctx) Type {
+	mt := c.expr(e.Msg, sc, x, Str)
+	if a := c.assign(Str, mt); !a.ok {
+		c.mismatch(e.Msg, Str, mt, a, "`fail` needs a Str", "pass a Str")
+	}
+	if fn := c.cannotFail(x); fn != nil {
+		c.errorf(e, fmt.Sprintf("change its result type to `-> %s!`", String(fn.result)), "`fail` stops `%s` with a failure, but `%s` cannot fail", fn.name, fn.name)
+	}
+	return c.fresh()
+}
+
+// cannotFail returns the function whose result a failure would become, if
+// that function cannot fail. Lambdas become failable instead.
+func (c *checker) cannotFail(x *ctx) *sig {
+	for k := x; k != nil; k = k.parent {
+		switch k.kind {
+		case ctxLambda:
+			k.usedBang = true
+			return nil
+		case ctxTogether, ctxTest, ctxTop:
+			return nil
+		case ctxFn:
+			if _, can := prune(k.fn.result).(*Fail); can || k.fn.isMain() {
+				return nil
+			}
+			return k.fn
+		}
+	}
+	return nil
+}
+
+// index checks `xs[i]`, which gives an optional: the index may be out of range.
+func (c *checker) index(e *ast.IndexExpr, sc *scope, x *ctx) Type {
+	t := c.expr(e.X, sc, x, nil)
+	it := c.expr(e.Index, sc, x, Int)
+	switch l := prune(t).(type) {
+	case *Bad:
+		return bad
+	case *List:
+		if a := c.assign(Int, it); !a.ok {
+			c.mismatch(e.Index, Int, it, a, "a list index needs an Int", "pass an Int")
+		}
+		return optional(l.Elem)
+	case *Var:
+		elem := c.fresh()
+		unify(l, &List{elem})
+		return optional(elem)
+	}
+	c.errorf(e.X, "", "only a List can be indexed with `[...]`, but this is %s", article(t))
+	return bad
+}
+
+// funcLit checks an anonymous function, `fn() { ... }`.
+func (c *checker) funcLit(e *ast.FuncLit, sc *scope, x *ctx) Type {
+	inner := newScope(sc)
+	params := make([]Type, len(e.Params))
+	for i, p := range e.Params {
+		params[i] = c.typeOf(p.Type, nil)
+		inner.vars[p.Name.Name] = &binding{t: params[i]}
+	}
+	lx := &ctx{kind: ctxLambda, parent: x}
+	var result Type
+	if e.Result != nil {
+		result = c.typeOf(e.Result, nil)
+		got := c.block(e.Body, inner, lx, result)
+		if a := c.assign(result, got); !a.ok {
+			if last := lastExpr(e.Body); last != nil {
+				c.mismatch(last, result, got, a, "this function returns "+article(result), "end the body with "+article(result))
+			}
+		}
+	} else {
+		c.block(e.Body, inner, lx, nil)
+		result = Unit
+	}
+	if lx.usedBang {
+		result = failable(result)
+	}
+	return &Func{params, result}
 }

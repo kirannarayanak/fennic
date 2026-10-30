@@ -1,0 +1,2 @@
+let text = fs.read("notes.txt") or ""
+print(text)

@@ -1,6 +1,6 @@
-error: `print` needs a Str, but this is a Str?, which might be none
- --> 08_optional_where_value_needed.fn:7:7
-  |
-7 | print(bo.email)
-  |       ^^^^^^^^
+error: `domain` needs a Str for `address`, but this is a Str?, which might be none
+  --> 08_optional_where_value_needed.fn:11:14
+   |
+11 | print(domain(bo.email))
+   |              ^^^^^^^^
 help: give a default for when it is missing: `bo.email ?? ""`

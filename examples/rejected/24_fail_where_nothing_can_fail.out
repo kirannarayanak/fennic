@@ -1,0 +1,6 @@
+error: `fail` stops `half` with a failure, but `half` cannot fail
+ --> 24_fail_where_nothing_can_fail.fn:3:5
+  |
+3 |     fail "odd number: {n}"
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+help: change its result type to `-> Int!`

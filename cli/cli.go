@@ -17,13 +17,13 @@ import (
 )
 
 const usage = `usage:
-  fennic run <file.fn>    run a program
-  fennic test <file.fn>   run the program's test blocks
+  fennic run <file.fn> [args...]   run a program; args go to fn main(args: List[Str])
+  fennic test <file.fn>            run the program's test blocks
 `
 
 // Main runs the command and returns the process exit status.
 func Main(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 || (args[0] != "run" && args[0] != "test") {
+	if len(args) < 2 || (args[0] != "run" && args[0] != "test") || (args[0] == "test" && len(args) != 2) {
 		fmt.Fprint(stderr, usage)
 		return 2
 	}
@@ -60,6 +60,12 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	if err := in.Run(); err != nil {
 		render(stderr, err.(*interp.RuntimeError).Diag)
 		return 1
+	}
+	if args[0] == "run" && in.HasMain() {
+		if err := in.Main(args[2:]); err != nil {
+			render(stderr, err.(*interp.RuntimeError).Diag)
+			return 1
+		}
 	}
 	if args[0] == "test" {
 		report, failed := interp.Report(in.RunTests(), func(d diag.Diagnostic) string {

@@ -97,9 +97,10 @@ func TestBindingsAndFunctions(t *testing.T) {
 func TestStrings(t *testing.T) {
 	runTypeCases(t, []typeCase{
 		{"interpolate anything", user + "let u = User { name: \"a\", age: 1, email: none }\nprint(\"{u} {u.email} {[1]} {1.5}\")", ""},
-		{"interpolate a failable", "let t = fs.read(\"x\")\nprint(\"{t}\")", "a Str! cannot go in a string until its failure is handled | handle the failure first: `t or \"\"` gives a fallback, and `t!` passes it on"},
+		{"interpolate a failable", "let t = fs.read(\"x\")\nprint(\"{t}\")", "a Str! cannot go in a string until its failure is handled | handle the failure first: `t else \"\"` gives a fallback, and `t!` passes it on"},
 		{"interpolate nothing", "fn f() { }\nprint(\"{f()}\")", "this gives nothing, so there is nothing to put in the string | interpolate a value instead"},
-		{"print needs a Str", `print(42)`, "`print` needs a Str, but this is an Int | to turn a value into a Str, interpolate it: \"{42}\""},
+		{"print shows any value", "print(42)\nprint([1])\nprint(none)", ""},
+		{"print cannot show a function", "fn f() { }\nprint(f)", "a function cannot go in a string | call the function and interpolate its result"},
 		{"len of Str", `let n = len("abc") + 1`, ""},
 		{"len of Int", `let n = len(3)`, "`len` needs a List or a Str, but this is an Int | "},
 	})
@@ -134,7 +135,7 @@ func TestOptionals(t *testing.T) {
 		{"chain flattens", team + "let t = Team { lead: none }\nlet e = t.lead?.email ?? \"x\"\nprint(e)", ""},
 		{"right-associative defaults", team + "let t = Team { lead: none }\nprint(t.lead?.email ?? t.lead?.email ?? \"x\")", ""},
 		{"dot through optional", team + "let t = Team { lead: none }\nlet n = t.lead.name", "`t.lead` is a User?, so it might be none and `.name` cannot be read directly | use `?.` and give a default: `t.lead?.name ?? \"\"`"},
-		{"optional where value needed", user + "let u = User { name: \"a\", age: 1, email: none }\nprint(u.email)", "`print` needs a Str, but this is a Str?, which might be none | give a default for when it is missing: `u.email ?? \"\"`"},
+		{"optional where value needed", user + "fn shout(s: Str) { }\nlet u = User { name: \"a\", age: 1, email: none }\nshout(u.email)", "`shout` needs a Str for `s`, but this is a Str?, which might be none | give a default for when it is missing: `u.email ?? \"\"`"},
 		{"default not needed", `let n = 1 ?? 2`, "`1` is an Int, which is never none, so `??` is not needed | remove `?? 2`"},
 		{"default of wrong type", `let n = first([1]) ?? "x"`, "the default after `??` must be an Int, but this is a Str | give a default of the same type as the value"},
 		{"chain not needed", user + "let u = User { name: \"a\", age: 1, email: none }\nlet n = u?.name", "`u` is a User, which is never none, so `?.` is not needed | use `.name`"},
@@ -150,16 +151,16 @@ func TestFailures(t *testing.T) {
 		{"propagate at top level", `let t = fs.read("x")!`, ""},
 		{"propagate in a test", "test \"t\" {\n  let x = fs.read(\"x\")!\n}", ""},
 		{"propagate in a lambda", `let ps = ["a"] |> map(f -> fs.read(f)!)`, ""},
-		{"failable lambda makes map failable", "let ps = [\"a\"] |> map(f -> fs.read(f)!)\nprint(\"{len(ps)}\")", "`len` needs a List or a Str, but this is a List[Str]!, which might be a failure | handle the failure first: `ps or []` gives a fallback, and `ps!` passes it on"},
-		{"handled failable map", "let ps = [\"a\"] |> map(f -> fs.read(f)!) or []\nprint(\"{len(ps)}\")", ""},
-		{"propagate where nothing can fail", "fn f() -> Str { fs.read(\"x\")! }", "`!` passes a failure on, but `f` cannot fail | change its result type to `-> Str!`, or handle the failure here with `or`"},
+		{"failable lambda makes map failable", "let ps = [\"a\"] |> map(f -> fs.read(f)!)\nprint(\"{len(ps)}\")", "`len` needs a List or a Str, but this is a List[Str]!, which might be a failure | handle the failure first: `ps else []` gives a fallback, and `ps!` passes it on"},
+		{"handled failable map", "let ps = [\"a\"] |> map(f -> fs.read(f)!) else []\nprint(\"{len(ps)}\")", ""},
+		{"propagate where nothing can fail", "fn f() -> Str { fs.read(\"x\")! }", "`!` passes a failure on, but `f` cannot fail | change its result type to `-> Str!`, or handle the failure here with `else`"},
 		{"propagate a value that cannot fail", "let n = len(\"a\")!", "`len(\"a\")` cannot fail, so there is nothing for `!` to pass on | remove the `!`"},
-		{"or", `let t = fs.read("x") or "none"`, ""},
-		{"or handler", "let t = fs.read(\"x\") or err -> { log.warn(\"{err}\"); \"none\" }\nprint(t)", ""},
-		{"or fallback type", `let t = fs.read("x") or 3`, "the fallback after `or` must be a Str, but this is an Int | give a fallback of the same type as the value"},
-		{"or on a value that cannot fail", `let n = len("a") or 0`, "`len(\"a\")` cannot fail, so `or` never runs | remove `or` and its fallback"},
-		{"unhandled where a value is needed", "let t = fs.read(\"x\")\nprint(t)", "`print` needs a Str, but this is a Str!, which might be a failure | handle the failure first: `t or \"\"` gives a fallback, and `t!` passes it on"},
-		{"field of a failable", "type C {\n  n: Int\n}\nfn load() -> C! { C { n: 1 } }\nlet n = load().n", "`load()` is a C!, which might be a failure, so `.n` cannot be read yet | handle the failure first: `load()!` passes it on, and `or` gives a fallback"},
+		{"else", `let t = fs.read("x") else "none"`, ""},
+		{"else handler", "let t = fs.read(\"x\") else err -> { log.warn(\"{err}\"); \"none\" }\nprint(t)", ""},
+		{"else fallback type", `let t = fs.read("x") else 3`, "the fallback after `else` must be a Str, but this is an Int | give a fallback of the same type as the value"},
+		{"else on a value that cannot fail", `let n = len("a") else 0`, "`len(\"a\")` cannot fail, so `else` never runs | remove `else` and its fallback"},
+		{"unhandled where a value is needed", "let t = fs.read(\"x\")\nprint(t)", "`print` needs a value to show, but this is a Str!, which might be a failure | handle the failure first: `t else \"\"` gives a fallback, and `t!` passes it on"},
+		{"field of a failable", "type C {\n  n: Int\n}\nfn load() -> C! { C { n: 1 } }\nlet n = load().n", "`load()` is a C!, which might be a failure, so `.n` cannot be read yet | handle the failure first: `load()!` passes it on, and `else` gives a fallback"},
 	})
 }
 
@@ -170,10 +171,10 @@ func TestMatch(t *testing.T) {
 		{"several missing", "type T = | A(x: Int) | B(x: Int) | C(x: Int)\nfn f(t: T) -> Int {\n  match t {\n    A(x) -> x\n  }\n}", "this `match` does not handle `B` or `C` | add arms: `B(x) -> ...`, `C(x) -> ...`"},
 		{"unknown variant", shapes + "fn f(s: Shape) -> Int {\n  match s {\n    Circle(r) -> 0\n    Rect(w, h) -> 1\n    Tri(a) -> 2\n  }\n}", "`Shape` has no variant `Tri` | its variants are Circle and Rect"},
 		{"bind count", shapes + "fn f(s: Shape) -> Float {\n  match s {\n    Circle(r) -> r\n    Rect(w) -> w\n  }\n}", "`Rect` has 2 fields, but the pattern names 1 | write `Rect(w, h)`"},
-		{"twice", shapes + "fn f(s: Shape) -> Int {\n  match s {\n    Circle(r) -> 0\n    Circle(r) -> 1\n    Rect(w, h) -> 2\n  }\n}", "`Circle` is matched twice; only the first arm can run | remove one of the arms"},
+		{"twice", shapes + "fn f(s: Shape) -> Int {\n  match s {\n    Circle(r) -> 0\n    Circle(r) -> 1\n    Rect(w, h) -> 2\n  }\n}", "this arm can never run: `Circle` is already handled on line 6 | remove it, or move it above line 6"},
 		{"arms differ", shapes + "let k = match Circle(1.0) {\n  Circle(r) -> \"c\"\n  Rect(w, h) -> 1\n}", "this arm gives an Int, but the first arm gives a Str | make every arm of a `match` give the same type"},
 		{"bound fields have their types", shapes + "let k = match Circle(1.0) {\n  Circle(r) -> r + 1\n  Rect(w, h) -> w\n}", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
-		{"not a sum type", "let k = match 3 {\n  A(x) -> x\n}", "`match` takes apart a sum type, but this is an Int | "},
+		{"not a sum type", "let k = match 3 {\n  A(x) -> x\n}", "this `match` does not handle every value | add `_ -> ...` as the last arm to handle the rest"},
 		{"constructor arguments", shapes + "let c = Circle(1)", "`Circle` needs a Float for `r`, but this is an Int | pass a Float"},
 		{"constructor arity", shapes + "let c = Rect(1.0)", "`Rect` takes 2 values, but was given 1 | write `Rect(w, h)`"},
 	})
@@ -233,7 +234,7 @@ func TestListsAndPipelines(t *testing.T) {
 		{"lambda that needs context", "let f = u -> u.name", "cannot tell what type `u` is, so `.name` cannot be checked | use it where its type is known, such as the argument of `map` or `filter`"},
 		{"map_par outside together", `let xs = [1] |> map_par(n -> n)`, "map_par spawns tasks, so it must run inside a `together` block | wrap it: `together { xs |> map_par(f) }!`"},
 		{"map_par inside together", "let xs = together { [1] |> map_par(n -> n * 2) }!\nlet n = sum(xs)", ""},
-		{"together is failable", "let xs = together { [1] |> map_par(n -> n) }\nlet n = sum(xs)", "`sum` needs a List, but this is a List[Int]!, which might be a failure | handle the failure first: `xs or []` gives a fallback, and `xs!` passes it on"},
+		{"together is failable", "let xs = together { [1] |> map_par(n -> n) }\nlet n = sum(xs)", "`sum` needs a List, but this is a List[Int]!, which might be a failure | handle the failure first: `xs else []` gives a fallback, and `xs!` passes it on"},
 	})
 }
 
@@ -241,7 +242,7 @@ func TestJSON(t *testing.T) {
 	cfg := "type Config {\n  name: Str\n  port: Int\n}\n"
 	runTypeCases(t, []typeCase{
 		{"from the result type", cfg + "fn load(t: Str) -> Config! { json.parse(t)! }", ""},
-		{"from a parameter", cfg + "fn use(c: Config) { }\nuse(json.parse(\"\") or Config { name: \"\", port: 0 })", ""},
+		{"from a parameter", cfg + "fn use(c: Config) { }\nuse(json.parse(\"\") else Config { name: \"\", port: 0 })", ""},
 		{"from a pipe", cfg + "fn load(t: Str) -> Config! { t |> json.parse() }", ""},
 		{"lists of records", cfg + "fn load(t: Str) -> List[Config]! { json.parse(t)! }", ""},
 		{"no expected type", "let c = json.parse(\"\\{}\")!", "cannot tell what type `json.parse` should produce here | parse inside a function whose result type says it, like `fn load(text: Str) -> Config! { json.parse(text)! }`"},
@@ -251,11 +252,11 @@ func TestJSON(t *testing.T) {
 
 // Several mistakes in one program are all reported, in source order.
 func TestSeveralErrors(t *testing.T) {
-	got := check(t, "let a = 1 + 2.0\nlet b = \"x\" + \"y\"\nprint(3)")
+	got := check(t, "let a = 1 + 2.0\nlet b = \"x\" + \"y\"\nlet c = len(3)")
 	if len(got) != 3 {
 		t.Fatalf("got %d errors, want 3:\n%s", len(got), strings.Join(got, "\n"))
 	}
-	for i, prefix := range []string{"`+` cannot mix", "`+` adds numbers", "`print` needs a Str"} {
+	for i, prefix := range []string{"`+` cannot mix", "`+` adds numbers", "`len` needs a List or a Str"} {
 		if !strings.HasPrefix(got[i], prefix) {
 			t.Errorf("error %d: got %q, want it to start with %q", i, got[i], prefix)
 		}
@@ -268,8 +269,8 @@ func TestDamagedExamplesDoNotCrash(t *testing.T) {
 	files, _ := filepath.Glob("../examples/*.fn")
 	more, _ := filepath.Glob("../examples/rejected/*.fn")
 	files = append(files, more...)
-	if len(files) != 40 {
-		t.Fatalf("found %d programs, want 40", len(files))
+	if len(files) < 40 {
+		t.Fatalf("found %d programs, want at least 40", len(files))
 	}
 	for _, f := range files {
 		data, err := os.ReadFile(f)
@@ -293,4 +294,87 @@ func TestDamagedExamplesDoNotCrash(t *testing.T) {
 			}()
 		}
 	}
+}
+
+func TestControlFlowTypes(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"if expression", `let x = if 1 > 0 { "a" } else { "b" }` + "\nprint(x)", ""},
+		{"else if chain", "fn f(n: Int) -> Str {\n  if n < 0 { \"neg\" } else if n == 0 { \"zero\" } else { \"pos\" }\n}", ""},
+		{"if without else gives nothing", "let x = if true { 1 }\nlet y = x + 1", "`+` needs two numbers, but got nothing and an Int | "},
+		{"branches differ", `let x = if true { 1 } else { "a" }`, "this branch gives a Str, but the first branch gives an Int | make both branches of the `if` give the same type"},
+		{"condition must be Bool", `if 1 { print("x") }`, "`if` needs a Bool, but this is an Int | compare it to make a Bool, like `x > 0`"},
+		{"and or not", `let b = not (1 < 2 and 3 > 4) or false`, ""},
+		{"and needs Bools", `let b = 1 and true`, "`and` needs a Bool, but this is an Int | compare it to make a Bool, like `x > 0`"},
+		{"or on a failure suggests else", `let t = fs.read("x") or ""`, "`or` combines two Bools, but this is a Str!, which might be a failure | to give a fallback for a failure, write `else`: `fs.read(\"x\") else \"\"`"},
+		{"for over a list", "for x in [1, 2] {\n  print(\"{x + 1}\")\n}", ""},
+		{"for over a range", "var t = 0\nfor n in 1..10 {\n  t += n\n}", ""},
+		{"for over a number", "for n in 3 { }", "`for` goes over a List, but this is an Int | go over a List or a range, like `for n in 1..10`"},
+		{"range of floats", `let r = 1.0..2.0`, "`..` makes a range of Ints, but this is a Float | "},
+		{"plus equals keeps the type", "var s = 0\ns += 1.5", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
+		{"underscore cannot be read", "for _ in [1] {\n  print(_)\n}", "`_` stands for a value that is not used, so it cannot be read | give the value a name to use it"},
+	})
+}
+
+func TestFailExpr(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"in a failable function", "fn f(n: Int) -> Int! {\n  if n < 0 { fail \"negative\" }\n  n\n}", ""},
+		{"as a branch value", "fn f(n: Int) -> Int! {\n  if n < 0 { fail \"negative\" } else { n }\n}", ""},
+		{"as a match arm", "fn f(n: Int) -> Str! {\n  match n {\n    0 -> fail \"zero\"\n    _ -> \"ok\"\n  }\n}", ""},
+		{"where nothing can fail", "fn f(n: Int) -> Int {\n  fail \"no\"\n}", "`fail` stops `f` with a failure, but `f` cannot fail | change its result type to `-> Int!`"},
+		{"in a lambda makes it failable", "let xs = [1] |> map(n -> if n > 0 { n } else { fail \"neg\" })\nlet n = len(xs)", "`len` needs a List or a Str, but this is a List[Int]!, which might be a failure | handle the failure first: `xs else []` gives a fallback, and `xs!` passes it on"},
+		{"message must be a Str", "fn f() -> Int! { fail 3 }", "`fail` needs a Str, but this is an Int | to turn a value into a Str, interpolate it: \"{3}\""},
+		{"in main", "fn main() {\n  fail \"stop\"\n}", ""},
+		{"propagate in main", "fn main() {\n  let t = fs.read(\"x\")!\n}", ""},
+	})
+}
+
+func TestPatternTypes(t *testing.T) {
+	status := "type Status =\n  | Queued\n  | Done(code: Int)\n"
+	runTypeCases(t, []typeCase{
+		{"literal inside a variant", status + "fn f(s: Status) -> Str {\n  match s {\n    Queued -> \"q\"\n    Done(0) -> \"ok\"\n    Done(c) -> \"{c}\"\n  }\n}", ""},
+		{"literal arm does not cover the variant", status + "fn f(s: Status) -> Str {\n  match s {\n    Queued -> \"q\"\n    Done(0) -> \"ok\"\n  }\n}", "this `match` does not handle `Done` | add an arm: `Done(code) -> ...`"},
+		{"variant value with no fields", status + "let s = Queued\nlet t = [Queued, Done(1)]", ""},
+		{"tuple patterns", "let s = match (1, \"a\") {\n  (0, _) -> \"zero\"\n  (n, t) -> \"{n}{t}\"\n}", ""},
+		{"tuple pattern of the wrong size", "let s = match (1, 2) {\n  (a, b, c) -> 0\n  _ -> 1\n}", "this pattern is a tuple of 3, but the value matched is a (Int, Int) | "},
+		{"list patterns need a catch-all", "fn f(xs: List[Int]) -> Int {\n  match xs {\n    [] -> 0\n    [x] -> x\n  }\n}", "this `match` does not handle every value | add `_ -> ...` as the last arm to handle the rest"},
+		{"list pattern types", "fn f(xs: List[Str]) -> Int {\n  match xs {\n    [x] -> x + 1\n    _ -> 0\n  }\n}", "`+` adds numbers, not strings | to join strings, interpolate them: \"{a}{b}\""},
+		{"literal of the wrong type", "let s = match 3 {\n  \"a\" -> 1\n  _ -> 2\n}", "this pattern is a Str, but the value matched is an Int | "},
+		{"bool covered by true and false", "let s = match 1 > 0 {\n  true -> 1\n  false -> 0\n}", ""},
+		{"arm after a catch-all", "let s = match 3 {\n  _ -> 1\n  0 -> 2\n}", "this arm can never run: the arm on line 2 already matches everything | remove it, or move it above line 2"},
+		{"unknown variant", status + "let s = match Queued {\n  Running(p) -> 1\n  _ -> 0\n}", "`Status` has no variant `Running` | its variants are Queued and Done"},
+	})
+}
+
+func TestM3Calls(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"lambda of two", "let add = (a, b) -> a + b\nlet n = add(1, 2) + 1", ""},
+		{"reduce", "let m = [1, 2] |> reduce((a, b) -> if a > b { a } else { b })\nlet n = (m ?? 0) + 1", ""},
+		{"reduce needs two values", "let m = [1] |> reduce(a -> a)", "`reduce` needs a function of two values | give it a function of two values, like `(a, b) -> a + b`"},
+		{"sort", "let xs = [3, 1] |> sort()\nlet n = (first(xs) ?? 0) + 1", ""},
+		{"sort needs ordered values", "type P {\n  x: Int\n}\nlet xs = [P { x: 1 }] |> sort()", "`sort` needs Ints, Floats or Strs, but this list holds Ps | sort by a key instead: `sort_by(x -> ...)`"},
+		{"first with a predicate", "let x = [1, 2] |> first(n -> n > 1)\nlet y = (x ?? 0) + 1", ""},
+		{"int.parse fails", "let n = int.parse(\"3\")\nlet m = n + 1", "`+` needs values, but this is an Int!, which might be a failure | handle the failure first: `n else 0` gives a fallback, and `n!` passes it on"},
+		{"env is optional", "let p = env(\"PORT\") ?? \"8080\"", ""},
+		{"len method", "let n = [1, 2].len() + \"ab\".len()", ""},
+		{"push", "var xs = []\nxs.push(1)\nlet n = (first(xs) ?? 0) + 1", ""},
+		{"push of the wrong type", "var xs = [1]\nxs.push(\"a\")", "this list holds Ints, so `.push` needs an Int, but this is a Str | push an Int"},
+		{"index", "let xs = [\"a\"]\nlet x = xs[0] ?? \"\"", ""},
+		{"index needs an Int", "let xs = [1]\nlet x = xs[\"a\"]", "a list index needs an Int, but this is a Str | pass an Int"},
+		{"index of a non-list", "let x = 3[0]", "only a List can be indexed with `[...]`, but this is an Int | "},
+		{"explicit type arguments", "fn pair[T](a: T, b: T) -> List[T] { [a, b] }\nlet xs = pair[Str](\"a\", \"b\")", ""},
+		{"explicit type arguments are checked", "fn pair[T](a: T, b: T) -> List[T] { [a, b] }\nlet xs = pair[Str](1, 2)", "`pair` needs a Str for `a`, but this is an Int | to turn a value into a Str, interpolate it: \"{1}\""},
+		{"too many type arguments", "fn id[T](a: T) -> T { a }\nlet x = id[Int, Str](1)", "`id` takes 1 type argument, but was given 2 | give one type for each of T"},
+		{"json.parse with a type argument", "type C {\n  a: Int\n}\nlet c = json.parse[C](`{\"a\": 1}`) else C { a: 0 }", ""},
+		{"anonymous function", "let f = fn() { print(\"x\") }\nf()", ""},
+		{"anonymous function with a result", "let f = fn(n: Int) -> Int { n * 2 }\nlet x = f(2) + 1", ""},
+	})
+}
+
+func TestMainSignature(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"no arguments", "fn main() { }", ""},
+		{"command-line arguments", "fn main(args: List[Str]) {\n  print(args[0] ?? \".\")\n}", ""},
+		{"wrong arguments", "fn main(n: Int) { }", "`main` takes no arguments, or the command-line arguments as a List[Str] | write `fn main()`, or `fn main(args: List[Str])` to receive the command-line arguments"},
+		{"a result", "fn main() -> Int { 0 }", "`main` returns nothing | remove the result type; use `!` or `fail` inside main to stop with a failure"},
+	})
 }

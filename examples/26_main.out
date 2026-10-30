@@ -1,0 +1,6 @@
+the top level runs first
+got 2 arguments
+3 -> 3
+skipping: "four" is not a whole number
+four -> 0
+FENNIC_EXAMPLE_UNSET is not set

@@ -1,0 +1,6 @@
+error: this branch gives an Int, but the first branch gives a Str
+ --> 21_if_branches_differ.fn:2:39
+  |
+2 | let label = if n > 2 { "big" } else { 0 }
+  |                                       ^
+help: make both branches of the `if` give the same type

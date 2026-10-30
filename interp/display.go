@@ -59,8 +59,20 @@ func write(b *strings.Builder, v Value) {
 			write(b, f)
 		}
 		b.WriteString(" }")
+	case *Tuple:
+		b.WriteByte('(')
+		for i, e := range v.Elems {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			write(b, e)
+		}
+		b.WriteByte(')')
 	case *Variant:
 		b.WriteString(v.Type.Name)
+		if len(v.Fields) == 0 {
+			return
+		}
 		b.WriteByte('(')
 		for i, f := range v.Fields {
 			if i > 0 {

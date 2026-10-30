@@ -4,4 +4,4 @@ error: cannot read "data/missing.txt": file not found
   |
 3 | let text = fs.read("data/missing.txt")!
   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: `!` passes a failure to the caller, but top-level code has no caller. Handle it here with `or`, for example `fs.read("data/missing.txt") or ""`
+help: `!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `fs.read("data/missing.txt") else ""`

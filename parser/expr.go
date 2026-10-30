@@ -10,34 +10,69 @@ import (
 
 // Precedence, loosest first:
 //
-//	or        x or fallback, x or err -> handler
+//	else      x else fallback, x else err -> handler
+//	or
+//	and
+//	not       not x
 //	??        right-associative
 //	|>        x |> f(a) is f(x, a)
 //	== !=
 //	< <= > >=
+//	..        a..b, both ends included
 //	+ -
 //	* / %
 //	-x
-//	postfix   call, .name, ?.name, !, with { ... }
+//	postfix   call, f[T](...), xs[i], .name, ?.name, !, with { ... }
 
-func (p *parser) parseExpr() ast.Expr { return p.parseOr() }
+func (p *parser) parseExpr() ast.Expr { return p.parseElse() }
+
+// parseElse parses the handling of a failure: `x else fallback` and
+// `x else err -> handler`.
+func (p *parser) parseElse() ast.Expr {
+	start := p.cur().Pos
+	x := p.parseOr()
+	for p.accept(token.Else) {
+		e := &ast.ElseExpr{X: x}
+		if p.at(token.Ident) && p.peek(1).Kind == token.Arrow {
+			e.ErrName = p.ident("")
+			p.next() // ->
+			e.Fallback = p.parseBody()
+		} else {
+			e.Fallback = p.parseOr()
+		}
+		e.Span = p.span(start)
+		x = e
+	}
+	return x
+}
 
 func (p *parser) parseOr() ast.Expr {
 	start := p.cur().Pos
-	x := p.parseCoalesce()
+	x := p.parseAnd()
 	for p.accept(token.Or) {
-		or := &ast.OrExpr{X: x}
-		if p.at(token.Ident) && p.peek(1).Kind == token.Arrow {
-			or.ErrName = p.ident("")
-			p.next() // ->
-			or.Fallback = p.parseBody()
-		} else {
-			or.Fallback = p.parseCoalesce()
-		}
-		or.Span = p.span(start)
-		x = or
+		r := p.parseAnd()
+		x = &ast.BinaryExpr{Span: p.span(start), Op: token.Or, Left: x, Right: r}
 	}
 	return x
+}
+
+func (p *parser) parseAnd() ast.Expr {
+	start := p.cur().Pos
+	x := p.parseNot()
+	for p.accept(token.And) {
+		r := p.parseNot()
+		x = &ast.BinaryExpr{Span: p.span(start), Op: token.And, Left: x, Right: r}
+	}
+	return x
+}
+
+func (p *parser) parseNot() ast.Expr {
+	if p.at(token.Not) {
+		start := p.next().Pos
+		x := p.parseNot()
+		return &ast.UnaryExpr{Span: p.span(start), Op: token.Not, X: x}
+	}
+	return p.parseCoalesce()
 }
 
 func (p *parser) parseCoalesce() ast.Expr {
@@ -87,7 +122,13 @@ func (p *parser) parseCallee() ast.Expr {
 			p.next()
 			x = &ast.FieldExpr{X: x, Name: p.ident("write a name after `.`"), Span: p.span(start)}
 		case p.at(token.LParen):
-			return p.parseCall(x, start)
+			return p.parseCall(x, nil, start)
+		case p.at(token.LBracket) && p.typeArgsAhead():
+			targs := p.parseTypeArgs()
+			if !p.at(token.LParen) {
+				return x
+			}
+			return p.parseCall(x, targs, start)
 		default:
 			return x
 		}
@@ -97,6 +138,7 @@ func (p *parser) parseCallee() ast.Expr {
 var binaryLevels = [][]token.Kind{
 	{token.Eq, token.NotEq},
 	{token.Lt, token.LtEq, token.Gt, token.GtEq},
+	{token.DotDot},
 	{token.Plus, token.Minus},
 	{token.Star, token.Slash, token.Percent},
 }
@@ -139,7 +181,24 @@ func (p *parser) parsePostfix() ast.Expr {
 	for {
 		switch {
 		case p.at(token.LParen):
-			x = p.parseCall(x, start)
+			x = p.parseCall(x, nil, start)
+		case p.at(token.LBracket):
+			if p.typeArgsAhead() {
+				targs := p.parseTypeArgs()
+				if !p.at(token.LParen) {
+					p.errorHere("call it with its arguments: `f[T](...)`", "expected `(` after the type arguments, found %s", p.found())
+					return &ast.BadExpr{Span: p.span(start)}
+				}
+				x = p.parseCall(x, targs, start)
+				continue
+			}
+			open := p.next()
+			saved := p.noRecord
+			p.noRecord = false
+			idx := p.parseExpr()
+			p.noRecord = saved
+			p.expectClose(open, token.RBracket)
+			x = &ast.IndexExpr{Span: p.span(start), X: x, Index: idx}
 		case p.at(token.Dot) || p.at(token.QDot):
 			opt := p.next().Kind == token.QDot
 			name := p.ident("write a field or method name after `.`")
@@ -161,9 +220,46 @@ func (p *parser) parsePostfix() ast.Expr {
 	}
 }
 
-func (p *parser) parseCall(fn ast.Expr, start token.Pos) ast.Expr {
+// typeArgsAhead reports whether the `[` here starts explicit type
+// arguments, `f[Config](...)`, rather than an index, `xs[i]`. Type names
+// start with a capital letter and the brackets are followed by a call.
+func (p *parser) typeArgsAhead() bool {
+	if t := p.peek(1); t.Kind != token.Ident || !isTypeName(t.Text) {
+		return false
+	}
+	depth := 0
+	for i := p.i; i < len(p.toks); i++ {
+		switch p.toks[i].Kind {
+		case token.LBracket:
+			depth++
+		case token.RBracket:
+			depth--
+			if depth == 0 {
+				return i+1 < len(p.toks) && p.toks[i+1].Kind == token.LParen
+			}
+		case token.Newline, token.EOF, token.LBrace, token.RBrace:
+			return false
+		}
+	}
+	return false
+}
+
+func (p *parser) parseTypeArgs() []ast.TypeExpr {
+	open := p.next() // [
+	var ts []ast.TypeExpr
+	for !p.at(token.RBracket) && !p.at(token.EOF) {
+		ts = append(ts, p.parseType())
+		if !p.accept(token.Comma) {
+			break
+		}
+	}
+	p.expectClose(open, token.RBracket)
+	return ts
+}
+
+func (p *parser) parseCall(fn ast.Expr, typeArgs []ast.TypeExpr, start token.Pos) ast.Expr {
 	open := p.next() // (
-	call := &ast.CallExpr{Fn: fn}
+	call := &ast.CallExpr{Fn: fn, TypeArgs: typeArgs}
 	call.Args = p.parseList(token.RParen, "write an argument")
 	p.expectClose(open, token.RParen)
 	call.Span = p.span(start)
@@ -273,13 +369,53 @@ func (p *parser) parsePrimary() ast.Expr {
 		p.next()
 		return &ast.NoneLit{Span: p.span(start)}
 	case token.LParen:
+		if p.lambdaParamsAhead() {
+			p.next() // (
+			var params []*ast.Ident
+			for !p.at(token.RParen) {
+				params = append(params, p.ident(""))
+				p.accept(token.Comma)
+			}
+			p.next() // )
+			p.next() // ->
+			body := p.parseBody()
+			return &ast.LambdaExpr{Span: p.span(start), Params: params, Body: body}
+		}
 		open := p.next()
 		saved := p.noRecord
 		p.noRecord = false
 		x := p.parseExpr()
+		if p.at(token.Comma) {
+			elems := []ast.Expr{x}
+			for p.accept(token.Comma) && !p.at(token.RParen) {
+				elems = append(elems, p.parseExpr())
+			}
+			p.noRecord = saved
+			p.expectClose(open, token.RParen)
+			return &ast.TupleLit{Span: p.span(start), Elems: elems}
+		}
 		p.noRecord = saved
 		p.expectClose(open, token.RParen)
 		return x
+	case token.If:
+		return p.parseIf()
+	case token.Fail:
+		p.next()
+		msg := p.parseOr()
+		return &ast.FailExpr{Span: p.span(start), Msg: msg}
+	case token.Fn:
+		p.next()
+		fl := &ast.FuncLit{Params: p.parseParams()}
+		if p.accept(token.Arrow) {
+			fl.Result = p.parseType()
+		}
+		if !p.at(token.LBrace) {
+			p.errorHere("write the body in braces: `fn() { ... }`", "expected the function body, found %s", p.found())
+			return &ast.BadExpr{Span: p.span(start)}
+		}
+		fl.Body = p.parseBlock()
+		fl.Span = p.span(start)
+		return fl
 	case token.LBracket:
 		open := p.next()
 		elems := p.parseList(token.RBracket, "write a list element")
@@ -354,21 +490,16 @@ func (p *parser) parseMatch() ast.Expr {
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
 		before := p.i
 		armStart := p.cur().Pos
-		pat := &ast.VariantPattern{Name: p.ident("start each arm with a variant, like `Circle(r) -> ...`")}
-		if p.at(token.LParen) {
-			popen := p.next()
-			for !p.at(token.RParen) && !p.at(token.EOF) {
-				pat.Binds = append(pat.Binds, p.ident("bind each field to a name, like `Rect(w, h)`"))
-				if !p.accept(token.Comma) {
-					break
-				}
-			}
-			p.expectClose(popen, token.RParen)
-		} else {
-			p.errorHere(fmt.Sprintf("name the fields to bind: `%s(...)`", pat.Name.Name),
-				"expected `(` after `%s` in the pattern, found %s", pat.Name.Name, p.found())
+		pat := p.parsePattern()
+		if p.quiet {
+			// A broken pattern: skip the rest of its arm.
+			p.sync()
+			m.Arms = append(m.Arms, &ast.MatchArm{Span: p.span(armStart), Pattern: pat, Body: &ast.BadExpr{Span: p.span(armStart)}})
+			p.endStatement()
+			p.skipNewlines()
+			p.ensureProgress(before)
+			continue
 		}
-		pat.Span = p.span(armStart)
 		p.expect(token.Arrow, "separate the pattern from its result with `->`")
 		body := p.parseBody()
 		m.Arms = append(m.Arms, &ast.MatchArm{Span: p.span(armStart), Pattern: pat, Body: body})
@@ -380,3 +511,110 @@ func (p *parser) parseMatch() ast.Expr {
 	m.Span = p.span(start)
 	return m
 }
+
+// lambdaParamsAhead reports whether the `(` here starts the parameters of a
+// lambda, `(a, b) -> ...`, rather than a group or a tuple.
+func (p *parser) lambdaParamsAhead() bool {
+	i := p.i + 1
+	for {
+		if p.toks[i].Kind != token.Ident {
+			return false
+		}
+		i++
+		if p.toks[i].Kind == token.RParen {
+			return p.toks[i+1].Kind == token.Arrow
+		}
+		if p.toks[i].Kind != token.Comma {
+			return false
+		}
+		i++
+	}
+}
+
+func (p *parser) parseIf() ast.Expr {
+	start := p.next().Pos // if
+	e := &ast.IfExpr{}
+	saved := p.noRecord
+	p.noRecord = true
+	e.Cond = p.parseExpr()
+	p.noRecord = saved
+	if !p.at(token.LBrace) {
+		p.errorHere("write the branch in braces: `if x > 0 { ... }`", "expected `{` after the condition, found %s", p.found())
+		return &ast.BadExpr{Span: p.span(start)}
+	}
+	e.Then = p.parseBlock()
+	if p.accept(token.Else) {
+		switch {
+		case p.at(token.If):
+			e.Else = p.parseIf()
+		case p.at(token.LBrace):
+			e.Else = p.parseBlock()
+		default:
+			p.errorHere("write a block after `else`, or another `if`: `else { ... }`", "expected `{` or `if` after `else`, found %s", p.found())
+		}
+	}
+	e.Span = p.span(start)
+	return e
+}
+
+// parsePattern parses one pattern of a match arm.
+func (p *parser) parsePattern() ast.Pattern {
+	t := p.cur()
+	start := t.Pos
+	switch t.Kind {
+	case token.Ident:
+		id := p.ident("")
+		switch {
+		case id.Name == "_":
+			return &ast.WildcardPattern{Span: p.span(start)}
+		case !isTypeName(id.Name):
+			return &ast.BindPattern{Span: p.span(start), Name: id}
+		}
+		vp := &ast.VariantPattern{Name: id}
+		if p.at(token.LParen) {
+			open := p.next()
+			for !p.at(token.RParen) && !p.at(token.EOF) {
+				vp.Args = append(vp.Args, p.parsePattern())
+				if !p.accept(token.Comma) {
+					break
+				}
+			}
+			p.expectClose(open, token.RParen)
+		}
+		vp.Span = p.span(start)
+		return vp
+	case token.Int, token.Float, token.Str, token.True, token.False:
+		return &ast.LiteralPattern{Span: t2span(t), Value: p.parsePrimary()}
+	case token.Minus:
+		if k := p.peek(1).Kind; k == token.Int || k == token.Float {
+			v := p.parseUnary()
+			return &ast.LiteralPattern{Span: p.span(start), Value: v}
+		}
+	case token.LParen, token.LBracket:
+		open := p.next()
+		closer := token.RParen
+		if t.Kind == token.LBracket {
+			closer = token.RBracket
+		}
+		var elems []ast.Pattern
+		for !p.at(closer) && !p.at(token.EOF) {
+			elems = append(elems, p.parsePattern())
+			if !p.accept(token.Comma) {
+				break
+			}
+		}
+		p.expectClose(open, closer)
+		if t.Kind == token.LBracket {
+			return &ast.ListPattern{Span: p.span(start), Elems: elems}
+		}
+		if len(elems) == 1 {
+			return elems[0]
+		}
+		return &ast.TuplePattern{Span: p.span(start), Elems: elems}
+	}
+	p.errorHere("start the arm with a pattern: a variant like `Circle(r)`, a literal, a name, `_`, `(a, b)` or `[x]`",
+		"expected a pattern, found %s", p.found())
+	return &ast.WildcardPattern{Span: ast.Span{From: start, To: start}}
+}
+
+func t2span(t token.Token) ast.Span { return ast.Span{From: t.Pos, To: t.End} }

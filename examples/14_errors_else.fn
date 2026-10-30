@@ -1,4 +1,4 @@
-// `or` handles a failure: either a fallback value, or a handler that receives the error.
+// `else` handles a failure: either a fallback value, or a handler that receives the error.
 type Config {
   name: Str
   port: Int
@@ -13,15 +13,15 @@ fn load(path: Str) -> Config! {
   json.parse(text)!
 }
 
-let cfg = load("data/missing.json") or Config.default()
+let cfg = load("data/missing.json") else Config.default()
 print("first: {cfg.name} on {cfg.port}")
 
-let cfg = load("data/missing.json") or err -> { log.warn("{err}"); Config.default() }
+let cfg = load("data/missing.json") else err -> { log.warn("{err}"); Config.default() }
 print("second: {cfg.name} on {cfg.port}")
 
-let cfg = load("data/app.json") or Config.default()
+let cfg = load("data/app.json") else Config.default()
 print("third: {cfg.name} on {cfg.port}")
 
-// The right side of `or` runs only when the left side fails.
-let cfg = load("data/app.json") or err -> { log.warn("not printed"); Config.default() }
+// The right side of `else` runs only when the left side fails.
+let cfg = load("data/app.json") else err -> { log.warn("not printed"); Config.default() }
 print("fourth: {cfg.name}")

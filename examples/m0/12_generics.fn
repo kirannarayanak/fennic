@@ -1,0 +1,20 @@
+fn chunk[T](items: List[T], size: Int) -> List[List[T]] {
+  var out = []
+  var batch = []
+  for item in items {
+    batch.push(item)
+    if batch.len() == size {
+      out.push(batch)
+      batch = []
+    }
+  }
+  if batch.len() > 0 { out.push(batch) }
+  out
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 12 has no main.
+fn main() {
+  print(chunk([1, 2, 3, 4, 5], 2))
+  print(chunk(["a", "b", "c"], 3))
+}

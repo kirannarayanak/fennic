@@ -1,0 +1,19 @@
+interface Sink {
+  fn write(self, line: Str)
+}
+
+type Console {}
+
+fn Console.write(self, line: Str) {
+  print(line)
+}
+
+fn report(out: Sink, rows: List[Str]) {
+  rows |> each(r -> out.write(r))
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 13 has no main.
+fn main() {
+  report(Console {}, ["first row", "second row"])
+}

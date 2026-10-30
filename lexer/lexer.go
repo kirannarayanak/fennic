@@ -5,7 +5,7 @@
 //   - inside ( ) and [ ], newlines are dropped;
 //   - after a token that cannot end an expression (an operator, a comma, an
 //     opening bracket), the newline is dropped;
-//   - before a line that starts with |> or |, the newline is dropped.
+//   - before a line that starts with |>, | or else, the newline is dropped.
 //
 // Runs of blank lines and comment-only lines produce at most one Newline.
 //
@@ -130,7 +130,8 @@ func continues(k token.Kind) bool {
 	case token.Comma, token.Dot, token.QDot, token.Arrow, token.Pipe, token.Bar,
 		token.QQ, token.Assign, token.Eq, token.NotEq, token.Lt, token.LtEq,
 		token.Gt, token.GtEq, token.Plus, token.Minus, token.Star, token.Slash,
-		token.Percent, token.Or, token.With, token.Colon,
+		token.Percent, token.Or, token.And, token.Not, token.Else, token.With, token.Colon,
+		token.DotDot, token.PlusEq, token.In,
 		token.LParen, token.LBracket, token.LBrace, token.Newline:
 		return true
 	}
@@ -141,7 +142,7 @@ func (l *lexer) emit(t token.Token) {
 	if l.pendingNL {
 		l.pendingNL = false
 		prevContinues := len(l.toks) == 0 || continues(l.toks[len(l.toks)-1].Kind)
-		nextContinues := t.Kind == token.Pipe || t.Kind == token.Bar
+		nextContinues := t.Kind == token.Pipe || t.Kind == token.Bar || t.Kind == token.Else
 		if !prevContinues && !nextContinues && t.Kind != token.EOF {
 			end := l.pendingPos
 			end.Col++
@@ -172,6 +173,8 @@ func (l *lexer) run() {
 		case r == '"':
 			l.advance()
 			l.lexString(start, true)
+		case r == '`':
+			l.lexRawString(start)
 		case r == '_' || unicode.IsLetter(r):
 			l.lexIdent(start)
 		case r >= '0' && r <= '9':
@@ -358,6 +361,24 @@ func (l *lexer) closeOpenStrings() {
 	l.stack = l.stack[:outer]
 }
 
+// lexRawString scans a backtick string: no escapes, no interpolation, and
+// it may span lines, so JSON and other text can be written as it is.
+func (l *lexer) lexRawString(start token.Pos) {
+	l.advance() // `
+	from := l.off
+	for l.off < len(l.src) && l.peek() != '`' {
+		l.advance()
+	}
+	if l.off >= len(l.src) {
+		l.errorf(start, l.pos(), "add a closing ` at the end of the string", "this raw string is never closed")
+		l.emit(token.Token{Kind: token.Str, Text: l.src[start.Offset:l.off], Value: l.src[from:l.off], Pos: start, End: l.pos()})
+		return
+	}
+	value := l.src[from:l.off]
+	l.advance() // `
+	l.emit(token.Token{Kind: token.Str, Text: l.src[start.Offset:l.off], Value: value, Pos: start, End: l.pos()})
+}
+
 // stringStart is the position of the opening quote of the string whose
 // interpolation is innermost.
 func (l *lexer) stringStart() token.Pos {
@@ -417,11 +438,9 @@ func (l *lexer) lexPunct(start token.Pos, r rune) {
 		l.advance()
 		l.tok(token.Semi, start)
 	case '.':
-		l.advance()
-		l.tok(token.Dot, start)
+		two('.', token.DotDot, token.Dot)
 	case '+':
-		l.advance()
-		l.tok(token.Plus, start)
+		two('=', token.PlusEq, token.Plus)
 	case '*':
 		l.advance()
 		l.tok(token.Star, start)

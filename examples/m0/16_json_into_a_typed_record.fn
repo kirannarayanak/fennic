@@ -1,0 +1,19 @@
+type Config {
+  host: Str
+  port: Int
+  debug: Bool
+}
+
+fn load(path: Str) -> Config! {
+  json.parse[Config](fs.read(path)!)!
+}
+
+// ---- preamble: not part of the spec program ----
+// Program 16 has no main. config.json sits beside this file.
+fn main() {
+  let c = load("config.json") else err -> {
+    print("{err}")
+    Config { host: "", port: 0, debug: false }
+  }
+  print(c)
+}

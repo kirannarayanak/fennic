@@ -1,0 +1,6 @@
+error: `if` needs a Bool, but this is an Int
+ --> 28_condition_is_not_a_bool.fn:2:4
+  |
+2 | if names.len() {
+  |    ^^^^^^^^^^^
+help: compare it to make a Bool, like `x > 0`
