@@ -1,0 +1,6 @@
+error: `Shape` has no variant `Triangle`
+ --> 13_unknown_variant.fn:9:5
+  |
+9 |     Triangle(a, b, c) -> 3
+  |     ^^^^^^^^
+help: its variants are Circle and Rect

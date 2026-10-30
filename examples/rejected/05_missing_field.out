@@ -1,0 +1,6 @@
+error: `User` is missing field `email`
+ --> 05_missing_field.fn:7:9
+  |
+7 | let u = User { name: "Ada", age: 41 }
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: records have no defaults; add `email: ...` (use `none` if it is optional)

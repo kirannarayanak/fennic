@@ -1,0 +1,6 @@
+error: `User` has no field `emial`
+ --> 06_unknown_field.fn:7:9
+  |
+7 | print(u.emial ?? "none")
+  |         ^^^^^
+help: did you mean `email`?

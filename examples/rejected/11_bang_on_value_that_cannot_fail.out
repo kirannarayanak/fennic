@@ -1,0 +1,6 @@
+error: `len("abc")` cannot fail, so there is nothing for `!` to pass on
+ --> 11_bang_on_value_that_cannot_fail.fn:1:19
+  |
+1 | let n = len("abc")!
+  |                   ^
+help: remove the `!`

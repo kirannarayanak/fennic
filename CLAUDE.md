@@ -127,6 +127,13 @@ Out of scope for M1: type checking, package manager, formatter, language server,
 
 Done. The name is Fennic (from fennec, a small quick fox): free on crates.io, npm and PyPI at the time of choosing. GitHub owner names and trademark registers were not checkable from the build session and still need a manual check.
 
+## M2: the type checker
+
+`docs/types.md` holds the rules. Acceptance: the twenty programs in
+`examples/` still pass, and the twenty in `examples/rejected/` each report
+exactly the error in their `.out` file. `json.parse` takes the type it
+builds from the expected type at the call (decided at the start of M2).
+
 ## Decisions made while writing the acceptance suite
 
 The syntax reference left these open. They were approved along with `examples/`; `examples/README.md` has the harness conventions.

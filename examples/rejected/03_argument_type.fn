@@ -1,0 +1,5 @@
+fn greet(who: Str) -> Str {
+  "Hello, {who}"
+}
+
+print(greet(42))

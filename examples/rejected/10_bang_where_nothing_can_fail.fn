@@ -1,0 +1,5 @@
+fn load(path: Str) -> Str {
+  fs.read(path)!
+}
+
+print(load("notes.txt"))

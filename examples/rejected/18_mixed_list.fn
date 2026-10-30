@@ -1,0 +1,2 @@
+let sizes = [1, 2, "three"]
+print("{sizes}")

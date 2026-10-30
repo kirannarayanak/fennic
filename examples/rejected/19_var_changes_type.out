@@ -1,0 +1,6 @@
+error: `count` holds an Int, so it cannot be set to a Str
+ --> 19_var_changes_type.fn:3:9
+  |
+3 | count = "many"
+  |         ^^^^^^
+help: keep `count` an Int, or give the Str its own name with `let`

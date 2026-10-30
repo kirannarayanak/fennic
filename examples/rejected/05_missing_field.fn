@@ -1,0 +1,7 @@
+type User {
+  name: Str
+  age: Int
+  email: Str?
+}
+
+let u = User { name: "Ada", age: 41 }

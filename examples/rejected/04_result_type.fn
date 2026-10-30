@@ -1,0 +1,5 @@
+fn label(n: Int) -> Str {
+  n * 2
+}
+
+print(label(4))

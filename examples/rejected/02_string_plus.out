@@ -1,0 +1,6 @@
+error: `+` adds numbers, not strings
+ --> 02_string_plus.fn:3:12
+  |
+3 | let full = first + " " + last
+  |            ^^^^^^^^^^^
+help: to join strings, interpolate them: "{a}{b}"

@@ -1,0 +1,6 @@
+error: this `match` does not handle `Square`
+ --> 12_non_exhaustive_match.fn:7:3
+  |
+7 |   match s {
+  |   ^^^^^^^
+help: add an arm: `Square(side) -> ...`

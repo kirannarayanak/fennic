@@ -1,0 +1,13 @@
+type Shape =
+  | Circle(radius: Float)
+  | Rect(w: Float, h: Float)
+
+fn sides(s: Shape) -> Int {
+  match s {
+    Circle(r) -> 0
+    Rect(w, h) -> 4
+    Triangle(a, b, c) -> 3
+  }
+}
+
+print("{sides(Circle(1.0))}")

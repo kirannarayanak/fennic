@@ -1,0 +1,15 @@
+interface Sink { fn write(self, line: Str) }
+
+type Counter {
+  n: Int
+}
+
+fn Counter.write(self, line: Int) {
+  print("{self.n + line}")
+}
+
+fn report(sink: Sink) {
+  sink.write("done")
+}
+
+report(Counter { n: 1 })

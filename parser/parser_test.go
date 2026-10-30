@@ -314,3 +314,24 @@ func TestExamplesParseCleanly(t *testing.T) {
 		})
 	}
 }
+
+// The M2 rejected programs must be valid syntax: only the type checker may
+// refuse them.
+func TestRejectedExamplesParseCleanly(t *testing.T) {
+	files, err := filepath.Glob("../examples/rejected/*.fn")
+	if err != nil || len(files) != 20 {
+		t.Fatalf("found %d rejected examples (err %v), want 20", len(files), err)
+	}
+	for _, f := range files {
+		t.Run(filepath.Base(f), func(t *testing.T) {
+			src, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, diags := Parse(string(src))
+			for _, d := range diags {
+				t.Errorf("%d:%d: %s", d.Pos.Line, d.Pos.Col, d.Msg)
+			}
+		})
+	}
+}

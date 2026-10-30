@@ -1,0 +1,6 @@
+error: this list holds Ints, but this element is a Str
+ --> 18_mixed_list.fn:1:20
+  |
+1 | let sizes = [1, 2, "three"]
+  |                    ^^^^^^^
+help: make every element an Int

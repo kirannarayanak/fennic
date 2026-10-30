@@ -1,0 +1,10 @@
+type User {
+  name: Str
+}
+
+type Team {
+  lead: User?
+}
+
+let docs = Team { lead: none }
+print(docs.lead.name)

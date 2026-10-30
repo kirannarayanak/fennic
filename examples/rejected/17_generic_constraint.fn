@@ -1,0 +1,10 @@
+type Point {
+  x: Int
+  y: Int
+}
+
+fn largest[T: Ord](items: List[T]) -> T? {
+  items |> sort_by(p -> p) |> last()
+}
+
+let far = largest([Point { x: 1, y: 2 }, Point { x: 3, y: 4 }])

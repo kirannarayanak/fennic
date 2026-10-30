@@ -1,0 +1,6 @@
+error: `docs.lead` is a User?, so it might be none and `.name` cannot be read directly
+  --> 07_field_on_optional.fn:10:7
+   |
+10 | print(docs.lead.name)
+   |       ^^^^^^^^^
+help: use `?.` and give a default: `docs.lead?.name ?? ""`

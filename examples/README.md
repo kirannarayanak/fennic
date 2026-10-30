@@ -34,3 +34,13 @@ M1 is done when every program here runs and its output matches the file beside i
 | `together`, `map_par` | 18 |
 | `test` and `assert` | 19 |
 | error messages that name the fix | 12, 20 |
+
+## Rejected programs (M2)
+
+`rejected/` holds twenty programs that are valid syntax but wrong, each
+with the one error the type checker must report in `NN_name.out`. The
+harness runs `fennic run NN_name.fn` from inside `rejected/`; every one must
+exit with status 1, print exactly its `.out` file, and run nothing.
+
+M2 is done when these twenty match and the twenty programs above still
+pass. The rules are in `docs/types.md`.

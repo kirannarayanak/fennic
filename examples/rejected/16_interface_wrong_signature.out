@@ -1,0 +1,6 @@
+error: `Counter` cannot be used as a `Sink`: its `write` takes `line: Int`, but `Sink` needs `line: Str`
+  --> 16_interface_wrong_signature.fn:15:8
+   |
+15 | report(Counter { n: 1 })
+   |        ^^^^^^^^^^^^^^^^
+help: change it to `fn Counter.write(self, line: Str)`

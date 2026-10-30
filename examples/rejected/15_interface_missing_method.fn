@@ -1,0 +1,9 @@
+interface Sink { fn write(self, line: Str) }
+
+type Silent {}
+
+fn report(sink: Sink) {
+  sink.write("done")
+}
+
+report(Silent {})

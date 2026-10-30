@@ -1,0 +1,6 @@
+error: `greet` needs a Str for `who`, but this is an Int
+ --> 03_argument_type.fn:5:13
+  |
+5 | print(greet(42))
+  |             ^^
+help: to turn a value into a Str, interpolate it: "{42}"

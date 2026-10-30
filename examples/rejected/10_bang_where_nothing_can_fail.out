@@ -1,0 +1,6 @@
+error: `!` passes a failure on, but `load` cannot fail
+ --> 10_bang_where_nothing_can_fail.fn:2:3
+  |
+2 |   fs.read(path)!
+  |   ^^^^^^^^^^^^^^
+help: change its result type to `-> Str!`, or handle the failure here with `or`

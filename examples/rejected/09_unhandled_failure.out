@@ -1,0 +1,6 @@
+error: `print` needs a Str, but this is a Str!, which might be a failure
+ --> 09_unhandled_failure.fn:2:7
+  |
+2 | print(notes)
+  |       ^^^^^
+help: handle the failure first: `notes or ""` gives a fallback, and `notes!` passes it on

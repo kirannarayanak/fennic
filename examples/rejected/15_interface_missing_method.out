@@ -1,0 +1,6 @@
+error: `Silent` cannot be used as a `Sink`: it has no method `write`
+ --> 15_interface_missing_method.fn:9:8
+  |
+9 | report(Silent {})
+  |        ^^^^^^^^^
+help: add `fn Silent.write(self, line: Str) { ... }`

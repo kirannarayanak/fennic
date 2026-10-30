@@ -1,0 +1,6 @@
+error: this arm gives a Float, but the first arm gives a Str
+ --> 14_match_arms_differ.fn:8:17
+  |
+8 |   Rect(w, h) -> w * h
+  |                 ^^^^^
+help: make every arm of a `match` give the same type

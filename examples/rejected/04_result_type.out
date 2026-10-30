@@ -1,0 +1,6 @@
+error: `label` returns a Str, but this is an Int
+ --> 04_result_type.fn:2:3
+  |
+2 |   n * 2
+  |   ^^^^^
+help: end the body with a Str, or change the result type to `-> Int`

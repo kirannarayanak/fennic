@@ -1,0 +1,7 @@
+type User {
+  name: Str
+  email: Str?
+}
+
+let u = User { name: "Ada", email: none }
+print(u.emial ?? "none")

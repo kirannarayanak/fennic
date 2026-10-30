@@ -1,0 +1,7 @@
+type User {
+  name: Str
+  email: Str?
+}
+
+let bo = User { name: "Bo", email: none }
+print(bo.email)

@@ -1,0 +1,6 @@
+error: `largest` needs `T: Ord`, but here `T` is `Point`, which cannot be ordered
+  --> 17_generic_constraint.fn:10:19
+   |
+10 | let far = largest([Point { x: 1, y: 2 }, Point { x: 3, y: 4 }])
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: only Int, Float and Str can be ordered; to order records, sort by a field: `sort_by(p -> p.x)`

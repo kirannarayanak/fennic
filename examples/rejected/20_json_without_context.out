@@ -1,0 +1,6 @@
+error: cannot tell what type `json.parse` should produce here
+ --> 20_json_without_context.fn:2:11
+  |
+2 | let cfg = json.parse(text)!
+  |           ^^^^^^^^^^^^^^^^
+help: parse inside a function whose result type says it, like `fn load(text: Str) -> Config! { json.parse(text)! }`
