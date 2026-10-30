@@ -10,6 +10,8 @@ Every feature is judged on whether it makes the person writing Fennic code do le
 
 No feature enters the language until three real programs already written needed it and worked around its absence.
 
+This rule governs features that were never specified. It does not govern constructs that are in the M0 spec (`docs/m0-spec.md`) but were not built: those are unfinished work, and building them needs no evidence. The only legitimate input to the rule is the record kept for the three real programs of M3 step 4. Known candidate waiting on that evidence: function types, so a user's own function can take a lambda.
+
 ## Frozen decisions
 
 These are settled. Do not reopen them, do not propose alternatives, do not add escape hatches.
@@ -134,6 +136,25 @@ Done. The name is Fennic (from fennec, a small quick fox): free on crates.io, np
 exactly the error in their `.out` file. `json.parse` takes the type it
 builds from the expected type at the call (decided at the start of M2).
 
+## M3: finish the language
+
+The M0 spec had two halves. `CLAUDE.md` was condensed from the first (frozen decisions and a short syntax reference). The second, a one-page tour and twenty programs, is `docs/m0-spec.md` and was not available until M3. M1 and M2 were built from the first half only, which is why `if`, loops, `fail` and the collection operations were missing.
+
+1. The diff, `docs/m3-diff.md`, lists every construct the spec uses that the language lacks. It is the M3 scope; nothing outside it enters M3.
+2. The collisions it names are decided and recorded in the spec before building.
+3. Each construct goes through lexer, parser, checker and interpreter, with passing examples and refused cases. Where a spec program cannot run as written, the spec changes and the commit says why.
+4. Three real programs, kept and used, live outside `examples/`, each with a record of what it needed and could not have.
+
+Acceptance: the twenty programs in `docs/m0-spec.md` run as written, with its amendments and the step 2 decisions applied.
+
+Out of scope: formatter, language server, package manager, bytecode VM, and any type system change the diff does not demand. Leave alone: `let xs = []` passing with an undecided type.
+
+When the implementation reports a construct missing from its source, first ask whether the source is complete.
+
+## M4, for context
+
+Tooling: error messages that name the fix, a formatter with no options, a language server. It comes after M3 step 4, because the error messages worth fixing are the ones that get in the way while writing real programs.
+
 ## Decisions made while writing the acceptance suite
 
 The syntax reference left these open. They were approved along with `examples/`; `examples/README.md` has the harness conventions.
@@ -146,7 +167,7 @@ The syntax reference left these open. They were approved along with `examples/`;
 - Built-ins beyond the reference: `len`, `first`, `last` (both return `T?`), `sum`, `map`, `each`.
 - `!` at top level stops the program with exit 1 and a diagnostic.
 - `json.parse` returns an untyped record in M1. How M2 names the target type is open.
-- `map_par` keeps input order and runs only inside `together`. The first task to fail cancels the others, and its failure is reported, never a cancellation. (Approved as "lowest index"; changed during M1 because cancelled tasks cannot show whether they would have failed. With several independent failures, which is reported depends on timing.)
+- `map_par` keeps input order and runs only inside `together`. The first task to fail cancels the others, and a failure is reported, never a cancellation. **Which failure is reported when several tasks fail is explicitly unspecified**: it depends on timing, and no program or test may depend on it. (Approved as "lowest index"; that cannot be guaranteed once cancelled tasks never run.)
 - A function with no `->` result type returns nothing, whatever its last expression.
 - `log.warn` writes `warn: <msg>` to stderr.
 - `fennic test` evaluates the top level, then each test.
