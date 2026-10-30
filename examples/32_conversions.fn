@@ -1,0 +1,8 @@
+// Ints and Floats never mix. Converting is a visible call.
+let count = 7
+let total = 17.5
+print("average: {total / to_float(count)}")
+
+// to_int truncates toward zero, and fails when a Float has no Int.
+print("{to_int(2.9) else 0} {to_int(-2.9) else 0}")
+print("{to_int(1.0 / 0.0) else err -> { print("{err}"); 0 }}")

@@ -387,3 +387,13 @@ func TestConcurrency(t *testing.T) {
 		{"close twice", "let ch = Chan[Int](1)\nch.close()\nch.close()", "this channel is already closed", "close a channel once, after the last send"},
 	})
 }
+
+func TestConversionsRuntime(t *testing.T) {
+	runCases(t, []runCase{
+		{"to_float", `print(to_float(7) / 2.0)`, "3.5"},
+		{"to_int truncates toward zero", `print("{to_int(2.9) else 0} {to_int(-2.9) else 0}")`, "2 -2"},
+		{"to_int of infinity fails", `print(to_int(1.0 / 0.0) else e -> { print("{e}"); 0 })`, "inf has no Int value\n0"},
+		{"to_int of nan fails", `print(to_int(0.0 / 0.0) else e -> { print("{e}"); 0 })`, "nan has no Int value\n0"},
+		{"to_int beyond the Int range fails", `print(to_int(10000000000000000000.0) else e -> { print("{e}"); 0 })`, "10000000000000000000.0 has no Int value\n0"},
+	})
+}

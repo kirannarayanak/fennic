@@ -3,4 +3,4 @@ error: `*` cannot mix an Int and a Float
   |
 3 | print("total: {price * tax}")
   |                ^^^^^^^^^^^
-help: write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you
+help: convert the Int with `to_float(price)`, or the Float with `to_int(...)`; Fennic never converts numbers for you

@@ -45,6 +45,7 @@ M1 is done when every program here runs and its output matches the file beside i
 | `csv.read`, `group_by`, `sum_by` | 29 |
 | `spawn`, channels, cancellation | 30 |
 | `fs.list`, `Date`, `flatten`, `unique`, `json.encode` | 31 |
+| `to_float`, `to_int` | 32 |
 
 Line-1 directives may also be `// expect: args a b` (command-line
 arguments) or `// expect: env NAME=value`. `examples/m0/` holds the

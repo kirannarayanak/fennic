@@ -60,7 +60,7 @@ func TestNumbers(t *testing.T) {
 		{"negation", "let a = 2\nlet b = -a", ""},
 		{"comparison", `let b = 1 < 2`, ""},
 		{"string comparison", `let b = "a" < "b"`, ""},
-		{"mixing", `let x = 1 + 2.0`, "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
+		{"mixing", `let x = 1 + 2.0`, "`+` cannot mix an Int and a Float | write the Int as a Float, `1.0`; Fennic never converts numbers for you"},
 		{"float modulo", `let x = 1.0 % 2.0`, "`%` needs two Ints | `%` works on Ints"},
 		{"adding strings", `let s = "a" + "b"`, "`+` adds numbers, not strings | to join strings, interpolate them: \"{a}{b}\""},
 		{"comparing kinds", `let b = 1 < "x"`, "cannot compare an Int with a Str | compare two Ints, two Floats or two Strs"},
@@ -173,7 +173,7 @@ func TestMatch(t *testing.T) {
 		{"bind count", shapes + "fn f(s: Shape) -> Float {\n  match s {\n    Circle(r) -> r\n    Rect(w) -> w\n  }\n}", "`Rect` has 2 fields, but the pattern names 1 | write `Rect(w, h)`"},
 		{"twice", shapes + "fn f(s: Shape) -> Int {\n  match s {\n    Circle(r) -> 0\n    Circle(r) -> 1\n    Rect(w, h) -> 2\n  }\n}", "this arm can never run: `Circle` is already handled on line 6 | remove it, or move it above line 6"},
 		{"arms differ", shapes + "let k = match Circle(1.0) {\n  Circle(r) -> \"c\"\n  Rect(w, h) -> 1\n}", "this arm gives an Int, but the first arm gives a Str | make every arm of a `match` give the same type"},
-		{"bound fields have their types", shapes + "let k = match Circle(1.0) {\n  Circle(r) -> r + 1\n  Rect(w, h) -> w\n}", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
+		{"bound fields have their types", shapes + "let k = match Circle(1.0) {\n  Circle(r) -> r + 1\n  Rect(w, h) -> w\n}", "`+` cannot mix an Int and a Float | write the Int as a Float, `1.0`; Fennic never converts numbers for you"},
 		{"not a sum type", "let k = match 3 {\n  A(x) -> x\n}", "this `match` does not handle every value | add `_ -> ...` as the last arm to handle the rest"},
 		{"constructor arguments", shapes + "let c = Circle(1)", "`Circle` needs a Float for `r`, but this is an Int | pass a Float"},
 		{"constructor arity", shapes + "let c = Rect(1.0)", "`Rect` takes 2 values, but was given 1 | write `Rect(w, h)`"},
@@ -205,7 +205,7 @@ func TestGenerics(t *testing.T) {
 	runTypeCases(t, []typeCase{
 		{"inferred", largest + "let n = largest([1, 2]) ?? 0\nlet s = largest([\"a\"]) ?? \"\"", ""},
 		{"inferred later", largest + "let n = largest([]) ?? 0", ""},
-		{"result type follows", largest + "let n = (largest([1]) ?? 0) + 1.0", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
+		{"result type follows", largest + "let n = (largest([1]) ?? 0) + 1.0", "`+` cannot mix an Int and a Float | convert the Int with `to_float(largest([1]) ?? 0)`, or the Float with `to_int(...)`; Fennic never converts numbers for you"},
 		{"Ord not satisfied", largest + "type P {\n  x: Int\n}\nlet p = largest([P { x: 1 }])", "`largest` needs `T: Ord`, but here `T` is `P`, which cannot be ordered | only Int, Float and Str can be ordered; to order records, sort by a field: `sort_by(p -> p.x)`"},
 		{"Ord decided later", largest + "type P {\n  x: Int\n}\nlet p = largest([]) ?? P { x: 1 }", "`largest` needs `T: Ord`, but here `T` is `P`, which cannot be ordered | only Int, Float and Str can be ordered; to order records, sort by a field: `sort_by(p -> p.x)`"},
 		{"unconstrained", "fn first_or[T](items: List[T], d: T) -> T { first(items) ?? d }\nlet x = first_or([1], 0) + 1", ""},
@@ -220,7 +220,7 @@ func TestGenerics(t *testing.T) {
 func TestListsAndPipelines(t *testing.T) {
 	runTypeCases(t, []typeCase{
 		{"pipeline", user + "let us = [User { name: \"a\", age: 1, email: none }]\nlet names = us |> filter(u -> u.age >= 18) |> sort_by(u -> u.name) |> take(10) |> map(u -> u.name)\nprint(\"{names}\")", ""},
-		{"lambda parameter from the list", "let xs = [1, 2] |> map(n -> n + 1.0)", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
+		{"lambda parameter from the list", "let xs = [1, 2] |> map(n -> n + 1.0)", "`+` cannot mix an Int and a Float | convert the Int with `to_float(n)`, or the Float with `to_int(...)`; Fennic never converts numbers for you"},
 		{"mixed list", `let xs = [1, "a"]`, "this list holds Ints, but this element is a Str | make every element an Int"},
 		{"list of optionals", "let xs = [1, none]", ""},
 		{"empty list from use", "let xs = []\nlet n = (first(xs) ?? 0) + 1", ""},
@@ -310,7 +310,7 @@ func TestControlFlowTypes(t *testing.T) {
 		{"for over a range", "var t = 0\nfor n in 1..10 {\n  t += n\n}", ""},
 		{"for over a number", "for n in 3 { }", "`for` goes over a List or a channel, but this is an Int | go over a List or a range, like `for n in 1..10`"},
 		{"range of floats", `let r = 1.0..2.0`, "`..` makes a range of Ints, but this is a Float | "},
-		{"plus equals keeps the type", "var s = 0\ns += 1.5", "`+` cannot mix an Int and a Float | write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you"},
+		{"plus equals keeps the type", "var s = 0\ns += 1.5", "`s` holds an Int, so it cannot have a Float added to it | declare `s` as a Float, like `var s = 0.0`, or convert the value with `to_int(...)`"},
 		{"underscore cannot be read", "for _ in [1] {\n  print(_)\n}", "`_` stands for a value that is not used, so it cannot be read | give the value a name to use it"},
 	})
 }
@@ -418,5 +418,17 @@ func TestConcurrencyTypes(t *testing.T) {
 		{"fs.write fails", "fn main() {\n  fs.write(\"a\", \"b\")!\n}", ""},
 		{"flatten needs lists", "let x = [1] |> flatten()", "`flatten` needs a list of lists, but this list holds Ints | "},
 		{"json.encode of a map with Int keys", "print(json.encode(Map{1: \"a\"}))", "`json.encode` cannot encode a Map[Int, Str]: only maps with Str keys have a JSON form | encode records, lists, maps with Str keys, and plain values"},
+	})
+}
+
+func TestConversions(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"to_float", "let n = 3\nlet x = to_float(n) / 2.0", ""},
+		{"to_int can fail", "let n = to_int(2.5) else 0\nlet m = n + 1", ""},
+		{"to_int must be handled", "let n = to_int(2.5) + 1", "`+` needs values, but this is an Int!, which might be a failure | handle the failure first: `to_int(2.5) else 0` gives a fallback, and `to_int(2.5)!` passes it on"},
+		{"to_float of a Float", "let x = to_float(1.5)", "`to_float` needs an Int, but this is a Float | pass an Int"},
+		{"to_int of an Int", "let n = to_int(3)", "`to_int` needs a Float, but this is an Int | pass a Float"},
+		{"float added to an int var", "var total = 0\ntotal += 1.5", "`total` holds an Int, so it cannot have a Float added to it | declare `total` as a Float, like `var total = 0.0`, or convert the value with `to_int(...)`"},
+		{"int added to a float var", "var total = 0.0\nlet n = 2\ntotal += n", "`total` holds a Float, so it cannot have an Int added to it | convert it with `to_float(n)`; Fennic never converts numbers for you"},
 	})
 }

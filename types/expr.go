@@ -135,7 +135,7 @@ var builtins = map[string]bool{
 	"sort": true, "reduce": true, "env": true,
 	"lower": true, "words": true, "tally": true, "top": true, "group_by": true,
 	"map_values": true, "sum_by": true, "sort_by_value": true,
-	"flatten": true, "unique": true,
+	"flatten": true, "unique": true, "to_float": true, "to_int": true,
 }
 
 var modules = map[string]bool{"fs": true, "json": true, "log": true, "int": true, "csv": true}
@@ -545,8 +545,7 @@ func (c *checker) arith(e *ast.BinaryExpr, l, r Type) Type {
 		}
 		return Float
 	case isNum(pl) && isNum(pr):
-		c.errorf(e, "write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you",
-			"`%s` cannot mix an Int and a Float", e.Op)
+		c.errorf(e, c.mixHelp(e, pl), "`%s` cannot mix an Int and a Float", e.Op)
 	case e.Op == token.Plus && (pl == Str || pr == Str):
 		c.errorf(e, `to join strings, interpolate them: "{a}{b}"`, "`+` adds numbers, not strings")
 	default:
@@ -1083,4 +1082,17 @@ func (c *checker) spawn(e *ast.SpawnExpr, sc *scope, x *ctx) Type {
 		c.errorf(e.Fn, "spawn a function, like `spawn fn() { ... }`", "`spawn` needs a function, but this is %s", article(t))
 	}
 	return Unit
+}
+
+// mixHelp names the conversion that fixes Int-and-Float arithmetic: a
+// literal is rewritten as a Float, anything else is converted visibly.
+func (c *checker) mixHelp(e *ast.BinaryExpr, left Type) string {
+	intSide := e.Right
+	if prune(left) == Int {
+		intSide = e.Left
+	}
+	if lit, ok := intSide.(*ast.IntLit); ok {
+		return fmt.Sprintf("write the Int as a Float, `%d.0`; Fennic never converts numbers for you", lit.Value)
+	}
+	return fmt.Sprintf("convert the Int with `to_float(%s)`, or the Float with `to_int(...)`; Fennic never converts numbers for you", c.text(intSide))
 }

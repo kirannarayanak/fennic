@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -187,6 +188,17 @@ func (in *Interp) prelude() *Env {
 			in.fail(c.node, "give a size of 0 or more", "a channel cannot hold %d values", n)
 		}
 		return &Channel{ch: make(chan Value, n)}
+	})
+	def("to_float", func(in *Interp, c *callSite, args []Value) Value {
+		return float64(args[0].(int64))
+	})
+	def("to_int", func(in *Interp, c *callSite, args []Value) Value {
+		// Truncates toward zero. A Float with no Int is a failure.
+		f := args[0].(float64)
+		if math.IsNaN(f) || f >= 9223372036854775808.0 || f < -9223372036854775808.0 {
+			return &Failure{Msg: fmt.Sprintf("%s has no Int value", formatFloat(f))}
+		}
+		return int64(f)
 	})
 	def("flatten", func(in *Interp, c *callSite, args []Value) Value {
 		out := &List{}

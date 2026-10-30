@@ -278,6 +278,7 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		"sort": 1, "env": 1, "int.parse": 1, "lower": 1, "words": 1, "tally": 1, "csv.read": 1,
 		"top": 2, "group_by": 2, "map_values": 2, "sum_by": 2, "sort_by_value": 2,
 		"flatten": 1, "unique": 1, "json.encode": 1, "fs.list": 2, "fs.write": 2,
+		"to_float": 1, "to_int": 1,
 		"map": 2, "each": 2, "filter": 2, "sort_by": 2, "take": 2, "map_par": 2, "reduce": 2,
 	}
 	if name == "first" {
@@ -322,6 +323,19 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 	case "int.parse":
 		strArg(0)
 		return &Fail{Int}
+	case "to_float", "to_int":
+		from, to := Int, Float
+		if name == "to_int" {
+			from, to = Float, Int
+		}
+		got := c.expr(args[0], sc, x, from)
+		if a := c.assign(from, got); !a.ok {
+			c.mismatch(args[0], from, got, a, "`"+name+"` needs "+article(from), "pass "+article(from))
+		}
+		if name == "to_int" {
+			return &Fail{Int} // NaN, infinity and Floats beyond the Int range have no Int
+		}
+		return to
 	case "flatten":
 		elem := c.listArg(name, args[0], sc, x)
 		switch inner := prune(elem).(type) {

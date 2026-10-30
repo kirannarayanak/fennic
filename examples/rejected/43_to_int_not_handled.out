@@ -1,0 +1,6 @@
+error: `+` needs values, but this is an Int!, which might be a failure
+ --> 43_to_int_not_handled.fn:2:13
+  |
+2 | let whole = to_int(price) + 1
+  |             ^^^^^^^^^^^^^
+help: handle the failure first: `to_int(price) else 0` gives a fallback, and `to_int(price)!` passes it on

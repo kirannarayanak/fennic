@@ -575,7 +575,18 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 			return // the M1 check reports these
 		}
 		if s.Op != 0 {
-			// `x += e` is `x = x + e`.
+			// `x += e` is `x = x + e`, but x's type is fixed by its declaration,
+			// so a Float added to an Int var means the var should be a Float.
+			if prune(b.t) == Int && prune(got) == Float {
+				c.errorf(s, fmt.Sprintf("declare `%s` as a Float, like `var %s = 0.0`, or convert the value with `to_int(...)`", s.Name.Name, s.Name.Name),
+					"`%s` holds an Int, so it cannot have a Float added to it", s.Name.Name)
+				return
+			}
+			if prune(b.t) == Float && prune(got) == Int {
+				c.errorf(s.Value, fmt.Sprintf("convert it with `to_float(%s)`; Fennic never converts numbers for you", c.text(s.Value)),
+					"`%s` holds a Float, so it cannot have an Int added to it", s.Name.Name)
+				return
+			}
 			c.arith(&ast.BinaryExpr{Span: s.Span, Op: token.Plus, Left: s.Name, Right: s.Value}, b.t, got)
 			return
 		}

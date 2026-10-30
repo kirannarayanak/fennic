@@ -56,8 +56,11 @@ three-programs rule.
 
 ## Rules
 
-**Numbers.** Arithmetic needs two Ints or two Floats; `%` needs Ints. `+`
-never joins strings. Comparisons `< <= > >=` need two values of the same
+**Numbers.** Arithmetic needs two Ints or two Floats; `%` needs Ints. To
+mix them, convert one side visibly: `to_float(n)` gives the Float of an Int,
+and `to_int(x)` gives the Int of a Float, truncated toward zero, or fails
+when there is none (NaN, infinity, beyond the Int range). `+` never joins
+strings. Comparisons `< <= > >=` need two values of the same
 `Ord` type: Int, Float or Str. `==` and `!=` need two values of the same
 type, and neither may be a function or a failable.
 
@@ -184,6 +187,8 @@ fs.list(Str, Str) -> List[Str]!                files in a directory matching a p
 fs.write(Str, Str) -> nothing!
 Chan[T](Int) -> Chan[T]
 int.parse(Str) -> Int!
+to_float(Int) -> Float
+to_int(Float) -> Int!                          truncates toward zero
 fs.read(Str) -> Str!
 json.parse(Str) -> T!                          T from the expected type, or json.parse[T]
 ```

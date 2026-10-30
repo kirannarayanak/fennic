@@ -168,8 +168,8 @@ Built-in functions: `print`, `len`, `first`, `last`, `sum`, `map`, `each`,
 `filter`, `sort_by`, `sort`, `reduce`, `take`, `map_par`, `env`, `lower`,
 `words`, `tally`, `top`, `group_by`, `map_values`, `sum_by`,
 `sort_by_value`, `flatten`, `unique`, plus `fs.read`, `fs.write`,
-`fs.list`, `json.parse`, `json.encode`, `csv.read`, `int.parse` and
-`log.warn`. Lists have `.len()` and `.push(x)`; strings and maps have
+`fs.list`, `json.parse`, `json.encode`, `csv.read`, `int.parse`,
+`to_float`, `to_int` and `log.warn`. Lists have `.len()` and `.push(x)`; strings and maps have
 `.len()`. Backtick strings, `` `{"a": 1}` ``, have no
 escapes and no interpolation.
 

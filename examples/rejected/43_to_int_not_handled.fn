@@ -1,0 +1,3 @@
+let price = 2.75
+let whole = to_int(price) + 1
+print(whole)
