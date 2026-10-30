@@ -1,0 +1,28 @@
+// x |> f(a) means f(x, a). A line starting with |> continues the expression above.
+type User {
+  name: Str
+  age: Int
+  email: Str?
+}
+
+let users = [
+  User { name: "Mira", age: 34, email: "mira@example.com" },
+  User { name: "Tomas", age: 17, email: none },
+  User { name: "Ada", age: 41, email: none },
+  User { name: "Zeke", age: 19, email: "zeke@example.com" },
+  User { name: "Lena", age: 15, email: none },
+  User { name: "Bo", age: 22, email: none },
+]
+
+let top = users
+  |> filter(u -> u.age >= 18)
+  |> sort_by(u -> u.name)
+  |> take(3)
+
+print("first three adults by name: {top |> map(u -> u.name)}")
+print("adults: {users |> filter(u -> u.age >= 18) |> len()}")
+
+let by_age = users
+  |> sort_by(u -> u.age)
+  |> map(u -> "{u.name} ({u.age})")
+print("by age: {by_age}")

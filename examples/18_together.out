@@ -1,0 +1,7 @@
+read 3 files
+alpha
+bravo
+charlie
+squares: [1, 4, 9, 16]
+together failed: cannot read "data/missing.txt": file not found
+got 0 pages

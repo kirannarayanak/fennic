@@ -1,0 +1,32 @@
+// expect: test
+fn greet(who: Str) -> Str {
+  "Hello, {who}"
+}
+
+type User {
+  name: Str
+  age: Int
+  email: Str?
+}
+
+test "greet uses the name" {
+  assert greet("Kiran") == "Hello, Kiran"
+}
+
+test "with copies and changes one field" {
+  let u = User { name: "Kiran", age: 31, email: none }
+  let older = u with { age: 32 }
+  assert older.age == 32
+  assert u.age == 31
+  assert older.name == u.name
+}
+
+test "missing email falls back" {
+  let u = User { name: "Bo", age: 20, email: none }
+  assert (u.email ?? "none") == "none"
+}
+
+test "failures can be handled" {
+  let text = fs.read("data/missing.txt") or "empty"
+  assert text == "empty"
+}

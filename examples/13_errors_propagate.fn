@@ -1,0 +1,25 @@
+// A failing function returns T!. `!` at a call site passes the failure up unchanged.
+type Config {
+  name: Str
+  port: Int
+}
+
+fn load(path: Str) -> Config! {
+  let text = fs.read(path)!        // propagate
+  json.parse(text)!
+}
+
+fn port_of(path: Str) -> Int! {
+  let cfg = load(path)!
+  cfg.port
+}
+
+let cfg = load("data/app.json")!
+print("loaded {cfg.name}")
+print("port: {port_of("data/app.json")!}")
+
+let missing = port_of("data/missing.json") or err -> { print("could not load: {err}"); -1 }
+print("missing port: {missing}")
+
+let broken = port_of("data/broken.json") or err -> { print("could not load: {err}"); -1 }
+print("broken port: {broken}")

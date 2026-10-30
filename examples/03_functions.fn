@@ -1,0 +1,31 @@
+// Top-level signatures are annotated. The last expression is the return value.
+fn square(n: Int) -> Int {
+  n * n
+}
+
+fn hypot_sq(a: Int, b: Int) -> Int {
+  let aa = square(a)
+  let bb = square(b)
+  aa + bb
+}
+
+fn greet(who: Str) -> Str {
+  "Hello, {who}"
+}
+
+// Top-level functions can be called before they are defined.
+print(describe(5))
+
+fn describe(n: Int) -> Str {
+  "{n} squared is {square(n)}"
+}
+
+print(greet("Ada"))
+print("3-4-5: {hypot_sq(3, 4)}")
+
+// No return type: the function is called for its effect.
+fn announce(msg: Str) {
+  print("** {msg} **")
+}
+
+announce("done")

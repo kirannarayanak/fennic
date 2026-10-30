@@ -1,0 +1,6 @@
+error: cannot assign to `total` because it was declared with `let`
+ --> 20_let_is_immutable.fn:4:1
+  |
+4 | total = total + 5
+  | ^^^^^
+help: change line 2 to `var total = 10` if `total` needs to change

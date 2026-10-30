@@ -1,0 +1,8 @@
+primes: [2, 3, 5, 7, 11]
+count: 5
+first: 2
+last: 11
+sum: 28
+doubled: [4, 6, 10, 14, 22]
+first of empty: -1
+words: ["fennic", "is", "brisk"]

@@ -1,0 +1,27 @@
+// `or` handles a failure: either a fallback value, or a handler that receives the error.
+type Config {
+  name: Str
+  port: Int
+}
+
+fn Config.default() -> Config {
+  Config { name: "default", port: 80 }
+}
+
+fn load(path: Str) -> Config! {
+  let text = fs.read(path)!
+  json.parse(text)!
+}
+
+let cfg = load("data/missing.json") or Config.default()
+print("first: {cfg.name} on {cfg.port}")
+
+let cfg = load("data/missing.json") or err -> { log.warn("{err}"); Config.default() }
+print("second: {cfg.name} on {cfg.port}")
+
+let cfg = load("data/app.json") or Config.default()
+print("third: {cfg.name} on {cfg.port}")
+
+// The right side of `or` runs only when the left side fails.
+let cfg = load("data/app.json") or err -> { log.warn("not printed"); Config.default() }
+print("fourth: {cfg.name}")

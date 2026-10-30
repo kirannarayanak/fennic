@@ -1,0 +1,27 @@
+// let is immutable, var is mutable. Ints and Floats never mix implicitly.
+let width = 7
+let height = 6
+var count = 0
+print("area: {width * height}")
+
+count = count + 1
+count = count + 1
+print("count: {count}")
+
+let half = 7 / 2
+let rem = 7 % 2
+print("7 / 2 = {half}, remainder {rem}")
+let ratio = 7.0 / 2.0
+print("7.0 / 2.0 = {ratio}")
+let neg = -width + 2
+print("negated: {neg}")
+
+print("big enough: {width * height >= 40}")
+print("equal: {width == height}, not equal: {width != height}")
+print("ordering: {3 < 5} {5 <= 5} {2 > 9}")
+let ready = true
+print("ready: {ready}")
+
+let label = "first"
+let label = "second"   // a new binding shadows the old one
+print(label)

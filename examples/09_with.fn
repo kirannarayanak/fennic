@@ -1,0 +1,18 @@
+// `with` copies a record and changes the named fields. The original is untouched.
+type User {
+  name: Str
+  age: Int
+  email: Str?
+}
+
+let u = User { name: "Kiran", age: 31, email: none }
+let older = u with { age: 32 }    // copy with change
+print("u: {u.name} is {u.age}")
+print("older: {older.name} is {older.age}")
+
+let moved = older with { age: 33, email: "kiran@example.com" }
+print("moved: {moved}")
+print("u is unchanged: {u}")
+
+let renamed = u with { name: "K" } with { age: 50 }
+print("renamed: {renamed.name} {renamed.age}")

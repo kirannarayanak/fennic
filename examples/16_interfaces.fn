@@ -1,0 +1,22 @@
+// Interfaces are satisfied structurally. Nothing declares that it implements anything.
+interface Sink { fn write(self, line: Str) }
+
+type Console {}
+
+fn Console.write(self, line: Str) { print(line) }   // structural, no impl block
+
+type Prefixed {
+  prefix: Str
+}
+
+fn Prefixed.write(self, line: Str) {
+  print("{self.prefix}{line}")
+}
+
+fn report(sink: Sink, total: Int) {
+  sink.write("total: {total}")
+  sink.write("status: ok")
+}
+
+report(Console {}, 3)
+report(Prefixed { prefix: "[audit] " }, 3)

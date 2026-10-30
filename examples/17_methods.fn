@@ -1,0 +1,45 @@
+// Methods are functions named Type.name. With self they are called on a value,
+// without self they are called on the type, like a constructor.
+type Rect {
+  w: Int
+  h: Int
+}
+
+fn Rect.square(side: Int) -> Rect {
+  Rect { w: side, h: side }
+}
+
+fn Rect.area(self) -> Int {
+  self.w * self.h
+}
+
+fn Rect.scale(self, k: Int) -> Rect {
+  self with { w: self.w * k, h: self.h * k }
+}
+
+fn Rect.label(self) -> Str {
+  "{self.w}x{self.h}"
+}
+
+type Line {
+  length: Int
+}
+
+fn Line.area(self) -> Int { 0 }
+fn Line.label(self) -> Str { "line of {self.length}" }
+
+interface Measured {
+  fn area(self) -> Int
+  fn label(self) -> Str
+}
+
+fn summary(m: Measured) -> Str {
+  "{m.label()} covers {m.area()}"
+}
+
+let r = Rect { w: 2, h: 3 }
+print(summary(r))
+print(summary(r.scale(2)))
+print(summary(Rect.square(4)))
+print(summary(Line { length: 9 }))
+print("chained: {Rect.square(1).scale(5).scale(2).label()}")

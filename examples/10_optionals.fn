@@ -1,0 +1,33 @@
+// There is no null. T? may hold a value or none. ?? gives a default, ?. chains.
+type User {
+  name: Str
+  email: Str?
+}
+
+type Team {
+  name: Str
+  lead: User?
+}
+
+let ada = User { name: "Ada", email: "ada@example.com" }
+let bo = User { name: "Bo", email: none }
+print("ada: {ada.email ?? "no email"}")
+print("bo: {bo.email ?? "no email"}")
+
+let core = Team { name: "core", lead: ada }
+let infra = Team { name: "infra", lead: bo }
+let docs = Team { name: "docs", lead: none }
+
+// ?. stops at the first missing value.
+print("core lead: {core.lead?.name ?? "nobody"}")
+print("docs lead: {docs.lead?.name ?? "nobody"}")
+print("core lead email: {core.lead?.email ?? "none given"}")
+print("infra lead email: {infra.lead?.email ?? "none given"}")
+print("docs lead email: {docs.lead?.email ?? "none given"}")
+
+// ?? chains right to left: the first present value wins.
+print("first contact: {docs.lead?.email ?? infra.lead?.email ?? core.lead?.email ?? "nobody"}")
+
+let fallback = docs.lead ?? bo
+print("docs falls back to {fallback.name}")
+print("docs: {docs}")

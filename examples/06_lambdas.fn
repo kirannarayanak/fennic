@@ -1,0 +1,21 @@
+// Lambdas are values and capture the bindings around them.
+let add_one = n -> n + 1
+print("add_one(41) = {add_one(41)}")
+
+let step = 5
+let bump = n -> n + step
+print("bump(10) = {bump(10)}")
+
+let scores = [72, 95, 88, 61]
+let passing = scores |> filter(s -> s >= 70)
+print("passing: {passing}")
+
+let high = scores |> map(s -> s + step) |> filter(s -> s > 90)
+print("curved and high: {high}")
+
+// A block body's last expression is the lambda's value.
+let grade = s -> {
+  let curved = s + step
+  curved * 2
+}
+print("grade(40) = {grade(40)}")

@@ -1,0 +1,6 @@
+loaded fennic-demo
+port: 8080
+could not load: cannot read "data/missing.json": file not found
+missing port: -1
+could not load: invalid JSON at 1:26: unexpected "}"
+broken port: -1

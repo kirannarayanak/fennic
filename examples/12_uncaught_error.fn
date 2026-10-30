@@ -1,0 +1,4 @@
+// expect: exit 1
+print("reading settings...")
+let text = fs.read("data/missing.txt")!
+print("never printed: {text}")

@@ -1,0 +1,10 @@
+ada: ada@example.com
+bo: no email
+core lead: Ada
+docs lead: nobody
+core lead email: ada@example.com
+infra lead email: none given
+docs lead email: none given
+first contact: ada@example.com
+docs falls back to Bo
+docs: Team { name: "docs", lead: none }

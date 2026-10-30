@@ -1,0 +1,20 @@
+// Braces in a string interpolate any expression.
+let city = "Lisbon"
+let temp = 21
+print("It is {temp} degrees in {city}.")
+print("Tomorrow: {temp + 3} degrees.")
+print("Length of city: {len(city)}")
+
+fn wrap(s: Str) -> Str {
+  "[{s}]"
+}
+print("wrapped: {wrap("hi")}")
+
+// Escapes: \n newline, \t tab, \" quote, \\ backslash, \{ literal brace.
+print("line one\nline two")
+print("tab:\tafter")
+print("she said \"hi\"")
+print("a path: C:\\fennic")
+print("braces: \{not interpolated}")
+let empty = ""
+print("empty is [{empty}]")

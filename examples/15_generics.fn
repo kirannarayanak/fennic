@@ -1,0 +1,15 @@
+// Generic functions. Type arguments are inferred at the call site.
+fn largest[T: Ord](items: List[T]) -> T? {
+  items |> sort_by(x -> x) |> last()
+}
+
+fn first_or[T](items: List[T], fallback: T) -> T {
+  first(items) ?? fallback
+}
+
+print("largest int: {largest([3, 9, 4]) ?? 0}")
+print("largest float: {largest([2.5, 1.5]) ?? 0.0}")
+print("largest word: {largest(["pear", "apple", "fig"]) ?? "none"}")
+print("largest of nothing: {largest([]) ?? 0}")
+print("first_or: {first_or([7, 8], 0)}")
+print("first_or empty: {first_or([], "x")}")

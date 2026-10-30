@@ -1,0 +1,5 @@
+add_one(41) = 42
+bump(10) = 15
+passing: [72, 95, 88]
+curved and high: [100, 93]
+grade(40) = 90

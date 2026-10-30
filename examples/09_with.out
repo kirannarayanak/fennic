@@ -1,0 +1,5 @@
+u: Kiran is 31
+older: Kiran is 32
+moved: User { name: "Kiran", age: 33, email: "kiran@example.com" }
+u is unchanged: User { name: "Kiran", age: 31, email: none }
+renamed: K 50

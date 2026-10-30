@@ -1,0 +1,24 @@
+// A sum type is one of several variants. match takes it apart.
+type Shape =
+  | Circle(radius: Float)
+  | Rect(w: Float, h: Float)
+
+fn area(s: Shape) -> Float {
+  match s {
+    Circle(r)  -> 3.14159 * r * r
+    Rect(w, h) -> w * h
+  }
+}
+
+let shapes = [Circle(1.0), Rect(3.0, 4.0), Circle(2.0), Rect(0.5, 8.0)]
+shapes |> each(s -> print("{s} has area {area(s)}"))
+
+let total = shapes |> map(s -> area(s)) |> sum()
+print("total area: {total}")
+
+let big = Rect(10.0, 2.0)
+let kind = match big {
+  Circle(r)  -> "circle of radius {r}"
+  Rect(w, h) -> "rect {w} by {h}"
+}
+print(kind)

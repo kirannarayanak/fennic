@@ -1,0 +1,6 @@
+p is (3, 4)
+p: Point { x: 3, y: 4 }
+origin == p: false
+p == q: true
+The Dispossessed by Ursula K. Le Guin, 387 pages
+Book { title: "The Dispossessed", pages: 387, author: "Ursula K. Le Guin" }

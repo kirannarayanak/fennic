@@ -1,0 +1,11 @@
+It is 21 degrees in Lisbon.
+Tomorrow: 24 degrees.
+Length of city: 6
+wrapped: [hi]
+line one
+line two
+tab:	after
+she said "hi"
+a path: C:\fennic
+braces: {not interpolated}
+empty is []

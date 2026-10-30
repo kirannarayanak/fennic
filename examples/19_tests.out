@@ -1,0 +1,6 @@
+test "greet uses the name" ... ok
+test "with copies and changes one field" ... ok
+test "missing email falls back" ... ok
+test "failures can be handled" ... ok
+
+4 passed, 0 failed

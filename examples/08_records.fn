@@ -1,0 +1,27 @@
+// Records hold data. Every field is given at construction; there are no defaults.
+type Point {
+  x: Int
+  y: Int
+}
+
+type Book {
+  title: Str
+  pages: Int
+  author: Str
+}
+
+let origin = Point { x: 0, y: 0 }
+let p = Point { x: 3, y: 4 }
+let q = Point { x: 3, y: 4 }
+print("p is ({p.x}, {p.y})")
+print("p: {p}")
+print("origin == p: {origin == p}")
+print("p == q: {p == q}")
+
+let book = Book {
+  title: "The Dispossessed",
+  pages: 387,
+  author: "Ursula K. Le Guin",
+}
+print("{book.title} by {book.author}, {book.pages} pages")
+print("{book}")

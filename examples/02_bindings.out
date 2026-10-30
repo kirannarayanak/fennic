@@ -1,0 +1,10 @@
+area: 42
+count: 2
+7 / 2 = 3, remainder 1
+7.0 / 2.0 = 3.5
+negated: -5
+big enough: true
+equal: false, not equal: true
+ordering: true true false
+ready: true
+second

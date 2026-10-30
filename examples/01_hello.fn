@@ -1,0 +1,5 @@
+// The smallest program. Top-level statements run in order.
+let name = "Kiran"
+let greeting = "Hello, {name}"   // interpolation
+print(greeting)
+print("Welcome to Fennic.")
