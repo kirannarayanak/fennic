@@ -1,0 +1,6 @@
+error: cannot tell what type `csv.read` should produce here
+ --> 33_csv_without_a_type.fn:1:12
+  |
+1 | let rows = csv.read("sales.csv")!
+  |            ^^^^^^^^^^^^^^^^^^^^^
+help: name the record type each row becomes: `csv.read[Sale](path)`

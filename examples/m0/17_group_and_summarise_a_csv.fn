@@ -1,0 +1,14 @@
+type Sale {
+  region: Str
+  amount: Float
+}
+
+fn main() {
+  let totals = csv.read[Sale]("sales.csv")!
+    |> group_by(s -> s.region)
+    |> map_values(rows -> rows |> sum_by(s -> s.amount))
+
+  totals
+    |> sort_by_value(desc)
+    |> each(e -> print("{e.key}\t{e.value}"))
+}

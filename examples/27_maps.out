@@ -1,0 +1,9 @@
+Map{"apples": 5, "pears": 7, "plums": 2}
+apples: 5
+figs: 0
+3 kinds of fruit
+before: 7, after: 0
+Map{"apples": 10, "pears": 0, "plums": 4}
+apples: 5
+plums: 2
+pears: 0

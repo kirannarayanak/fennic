@@ -40,6 +40,9 @@ M1 is done when every program here runs and its output matches the file beside i
 | patterns: variants without fields, literals, tuples, lists, `_` | 24 |
 | lambdas of several values, `reduce`, `sort`, `first(pred)`, `fn() { }`, type arguments, backtick strings | 25 |
 | `fn main(args)`, `env`, `int.parse` | 26 |
+| maps: `Map{...}`, `m[k]`, `m[k] = v`, `map_values`, `sort_by_value` | 27 |
+| `lower`, `words`, `tally`, `top` | 28 |
+| `csv.read`, `group_by`, `sum_by` | 29 |
 
 Line-1 directives may also be `// expect: args a b` (command-line
 arguments) or `// expect: env NAME=value`. `examples/m0/` holds the

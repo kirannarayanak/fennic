@@ -1,0 +1,6 @@
+error: `xs` is a List[Int], so `xs[...] = ...` cannot change it
+ --> 32_set_a_list_by_index.fn:2:1
+  |
+2 | xs[0] = 5
+  | ^^
+help: only a map entry can be set this way; to change a list, build a new one

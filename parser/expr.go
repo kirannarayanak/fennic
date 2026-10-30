@@ -340,6 +340,9 @@ func (p *parser) parsePrimary() ast.Expr {
 			return &ast.BadExpr{Span: p.span(start)}
 		}
 		id := p.ident("")
+		if id.Name == "Map" && p.at(token.LBrace) && !p.noRecord {
+			return p.parseMapLit(start)
+		}
 		if isTypeName(id.Name) && p.at(token.LBrace) && !p.noRecord {
 			rl := &ast.RecordLit{Type: id, Fields: p.parseFieldInits()}
 			rl.Span = p.span(start)
@@ -618,3 +621,30 @@ func (p *parser) parsePattern() ast.Pattern {
 }
 
 func t2span(t token.Token) ast.Span { return ast.Span{From: t.Pos, To: t.End} }
+
+// parseMapLit parses `Map{key: value, ...}` after the word Map.
+func (p *parser) parseMapLit(start token.Pos) ast.Expr {
+	open := p.next() // {
+	saved := p.noRecord
+	p.noRecord = false
+	defer func() { p.noRecord = saved }()
+	m := &ast.MapLit{}
+	p.skipNewlines()
+	for !p.at(token.RBrace) && !p.at(token.EOF) {
+		before := p.i
+		estart := p.cur().Pos
+		k := p.parseExpr()
+		p.expect(token.Colon, "separate each key from its value with `:`, like `\"apples\": 3`")
+		v := p.parseExpr()
+		m.Entries = append(m.Entries, &ast.MapEntry{Span: p.span(estart), Key: k, Value: v})
+		p.skipNewlines()
+		if !p.accept(token.Comma) || p.i == before {
+			break
+		}
+		p.skipNewlines()
+	}
+	p.skipNewlines()
+	p.expectClose(open, token.RBrace)
+	m.Span = p.span(start)
+	return m
+}

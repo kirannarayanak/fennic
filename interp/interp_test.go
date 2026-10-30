@@ -344,3 +344,15 @@ func TestM3Runtime(t *testing.T) {
 		{"fail at the top level", `fail "stop here"`, "stop here", "nothing handles this failure, so the program stops; call the code that fails with `else` to handle it"},
 	})
 }
+
+func TestCollectionsRuntime(t *testing.T) {
+	runCases(t, []runCase{
+		{"insertion order", "var m = Map{\"b\": 1}\nm[\"a\"] = 2\nm[\"b\"] = 3\nprint(m)", `Map{"b": 3, "a": 2}`},
+		{"maps are values", "var a = Map{\"k\": 1}\nlet b = a\na[\"k\"] = 2\nprint(\"{b} {a}\")", `Map{"k": 1} Map{"k": 2}`},
+		{"equality ignores order", `print("{Map{"a": 1, "b": 2} == Map{"b": 2, "a": 1}}")`, "true"},
+		{"words keep apostrophes", `print("{"Rock'n'roll, it's 'here'" |> words()}")`, `["Rock'n'roll", "it's", "here"]`},
+		{"top of more than there is", `print("{["a"] |> tally() |> top(5)}")`, `[Count { key: "a", count: 1 }]`},
+		{"sort_by_value ascending", `print("{Map{"a": 3, "b": 1} |> sort_by_value(asc) |> map(e -> e.key)}")`, `["b", "a"]`},
+		{"group_by keeps first-seen order", `print("{[3, 1, 4, 1, 5] |> group_by(n -> n % 2 == 0)}")`, "Map{false: [3, 1, 1, 5], true: [4]}"},
+	})
+}

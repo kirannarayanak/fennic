@@ -74,6 +74,18 @@ func (p *parser) parseStmt() ast.Stmt {
 		return &ast.ExprStmt{Span: p.span(start), X: x}
 	}
 	x := p.parseExpr()
+	if p.at(token.Assign) {
+		// `m[k] = v` changes one entry of a map.
+		if ix, ok := x.(*ast.IndexExpr); ok {
+			if id, isName := ix.X.(*ast.Ident); isName {
+				p.next() // =
+				s := &ast.IndexAssignStmt{Name: id, Index: ix.Index, Value: p.parseExpr()}
+				s.Span = p.span(start)
+				return s
+			}
+		}
+		p.errorHere("assign to a `var` by name, `x = ...`, or to a map entry, `m[key] = ...`", "this cannot be assigned to")
+	}
 	return &ast.ExprStmt{Span: p.span(start), X: x}
 }
 

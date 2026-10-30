@@ -1,0 +1,2 @@
+let rows = csv.read("sales.csv")!
+print("{rows.len()}")

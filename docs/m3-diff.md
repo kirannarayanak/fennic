@@ -195,12 +195,20 @@ acceptance run.
 - **Spec programs 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15 and 16** run
   as written in `examples/m0`.
 
-**Collections and built-ins: next.**
+**Collections and built-ins: done.**
 - Maps (item 22).
-- The rest of section B.
+- `lower`, `words`, `tally`, `top`, `group_by`, `map_values`, `sum_by`,
+  `sort_by_value` with `asc` and `desc`, and `csv.read`.
 - JSON failures that name the line.
-- Spec programs 5, 11 and 17.
+- Spec programs 5, 11 and 17 run as written, with no preamble.
 
 **Concurrency and data formats: last.**
-- `spawn`, channels, `Date` and CSV (items 23–25).
+- `spawn`, channels, `Date` and CSV dates (items 23–25).
+- The built-ins only program 20 uses: `fs.list`, `fs.write`,
+  `json.encode`, `flatten` and `unique`. Moved here from the collections
+  group, so they land with the program that needs them.
 - The rewrite of programs 18, 19 and 20 without `http.get` (decision 3).
+- **A question to settle then:** program 20 pipes
+  `fs.list(dir, "*.csv")` straight into `map_par` without `!`. So either
+  `fs.list` cannot fail, and a missing directory gives an empty list, or
+  the spec text changes to `fs.list(dir, "*.csv")!`.

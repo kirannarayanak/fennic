@@ -1,0 +1,6 @@
+error: `top` needs a Map of counts, but this map's values are Strs
+ --> 34_top_of_something_not_counted.fn:2:12
+  |
+2 | let best = names |> top(1)
+  |            ^^^^^
+help: count with `tally` first, then take the top

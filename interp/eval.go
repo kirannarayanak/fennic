@@ -44,6 +44,12 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		return Unit
 	case *ast.ExprStmt:
 		return in.eval(s.X, env, t)
+	case *ast.IndexAssignStmt:
+		m, _ := env.Lookup(s.Name.Name)
+		k := in.eval(s.Index, env, t)
+		v := in.eval(s.Value, env, t)
+		env.Assign(s.Name.Name, m.(*Map).with(k, v))
+		return Unit
 	case *ast.ForStmt:
 		items, ok := in.eval(s.In, env, t).(*List)
 		if !ok {
@@ -145,10 +151,23 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 		return in.call(fn, in.evalArgs(e.Args, env, t), site)
 	case *ast.FieldExpr:
 		return in.evalField(e, env, t)
+	case *ast.MapLit:
+		m := &Map{}
+		for _, en := range e.Entries {
+			m = m.with(in.eval(en.Key, env, t), in.eval(en.Value, env, t))
+		}
+		return m
 	case *ast.IndexExpr:
-		l, ok := in.eval(e.X, env, t).(*List)
+		x := in.eval(e.X, env, t)
+		if m, isMap := x.(*Map); isMap {
+			if i := m.index(in.eval(e.Index, env, t)); i >= 0 {
+				return m.Vals[i]
+			}
+			return None
+		}
+		l, ok := x.(*List)
 		if !ok {
-			in.fail(e.X, "", "only a List can be indexed")
+			in.fail(e.X, "", "only a List or a Map can be indexed")
 		}
 		i := in.eval(e.Index, env, t).(int64)
 		if i < 0 || i >= int64(len(l.Elems)) {
@@ -512,6 +531,20 @@ func equal(a, b Value) bool {
 			}
 		}
 		return true
+	case *Map:
+		y, ok := b.(*Map)
+		if !ok || len(x.Keys) != len(y.Keys) {
+			return false
+		}
+		for i, k := range x.Keys {
+			j := y.index(k)
+			if j < 0 || !equal(x.Vals[i], y.Vals[j]) {
+				return false
+			}
+		}
+		return true
+	case Order:
+		return a == b
 	case *Tuple:
 		y, ok := b.(*Tuple)
 		if !ok || len(x.Elems) != len(y.Elems) {

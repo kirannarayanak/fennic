@@ -360,7 +360,7 @@ func TestM3Calls(t *testing.T) {
 		{"push of the wrong type", "var xs = [1]\nxs.push(\"a\")", "this list holds Ints, so `.push` needs an Int, but this is a Str | push an Int"},
 		{"index", "let xs = [\"a\"]\nlet x = xs[0] ?? \"\"", ""},
 		{"index needs an Int", "let xs = [1]\nlet x = xs[\"a\"]", "a list index needs an Int, but this is a Str | pass an Int"},
-		{"index of a non-list", "let x = 3[0]", "only a List can be indexed with `[...]`, but this is an Int | "},
+		{"index of a non-list", "let x = 3[0]", "only a List or a Map can be indexed with `[...]`, but this is an Int | "},
 		{"explicit type arguments", "fn pair[T](a: T, b: T) -> List[T] { [a, b] }\nlet xs = pair[Str](\"a\", \"b\")", ""},
 		{"explicit type arguments are checked", "fn pair[T](a: T, b: T) -> List[T] { [a, b] }\nlet xs = pair[Str](1, 2)", "`pair` needs a Str for `a`, but this is an Int | to turn a value into a Str, interpolate it: \"{1}\""},
 		{"too many type arguments", "fn id[T](a: T) -> T { a }\nlet x = id[Int, Str](1)", "`id` takes 1 type argument, but was given 2 | give one type for each of T"},
@@ -376,5 +376,29 @@ func TestMainSignature(t *testing.T) {
 		{"command-line arguments", "fn main(args: List[Str]) {\n  print(args[0] ?? \".\")\n}", ""},
 		{"wrong arguments", "fn main(n: Int) { }", "`main` takes no arguments, or the command-line arguments as a List[Str] | write `fn main()`, or `fn main(args: List[Str])` to receive the command-line arguments"},
 		{"a result", "fn main() -> Int { 0 }", "`main` returns nothing | remove the result type; use `!` or `fail` inside main to stop with a failure"},
+	})
+}
+
+func TestCollections(t *testing.T) {
+	runTypeCases(t, []typeCase{
+		{"map literal", "let m = Map{\"a\": 1}\nlet n = (m[\"a\"] ?? 0) + 1", ""},
+		{"empty map from use", "var m = Map{}\nm[\"a\"] = 1\nlet n = (m[\"a\"] ?? 0) + 1", ""},
+		{"map type written", "fn f(m: Map[Str, Int]) -> Int { m.len() }", ""},
+		{"map keys must be simple", "type P {\n  x: Int\n}\nlet m = Map{P { x: 1 }: 1}", "map keys must be Str, Int or Bool, but these are Ps | use Str, Int or Bool keys"},
+		{"map type keys", "fn f(m: Map[List[Int], Int]) { }", "map keys must be Str, Int or Bool, but this is a List[Int] | use Str, Int or Bool keys"},
+		{"value of the wrong type", "var m = Map{\"a\": 1}\nm[\"b\"] = \"x\"", "this map's values are Ints, so the value must be an Int, but this is a Str | pass an Int"},
+		{"tally and top", "let t = \"a b a\" |> words() |> tally() |> top(1)\nlet s = (first(t)?.key ?? \"\") \nlet n = (first(t)?.count ?? 0) + 1", ""},
+		{"tally of records", "type P {\n  x: Int\n}\nlet t = [P { x: 1 }] |> tally()", "`tally` counts Strs, Ints or Bools, but this list holds Ps | tally a list of Strs, Ints or Bools, such as a key taken from each element with `map`"},
+		{"group_by and map_values", "type S {\n  r: Str\n  a: Float\n}\nlet m = [S { r: \"w\", a: 1.0 }] |> group_by(s -> s.r) |> map_values(rs -> rs |> sum_by(s -> s.a))\nlet v = (m[\"w\"] ?? 0.0) + 1.0", ""},
+		{"group_by key", "let m = [1] |> group_by(n -> [n])", "`group_by` needs a key that is a Str, an Int or a Bool, but this one is a List[Int] | group by a Str, an Int or a Bool, such as one field"},
+		{"sum_by", "let s = [\"ab\"] |> sum_by(w -> w)", "`sum_by` adds up Ints or Floats, but this function gives a Str | return an Int or a Float from the function"},
+		{"sort_by_value", "let e = Map{\"a\": 2} |> sort_by_value(desc)\nlet k = first(e)?.key ?? \"\"\nlet v = (first(e)?.value ?? 0) + 1", ""},
+		{"sort_by_value needs an order", "let e = Map{\"a\": 2} |> sort_by_value(1)", "`sort_by_value` needs an order, but this is an Int | write `asc` or `desc`"},
+		{"entry fields", "let e = Map{\"a\": 2} |> sort_by_value(asc) |> map(x -> x.count)", "an Entry[Str, Int] has no field `count` | its fields are key and value"},
+		{"lower and words", "let w = \"A b\" |> lower() |> words()\nlet n = w.len()", ""},
+		{"csv.read", "type R {\n  a: Int\n  b: Str?\n}\nlet rows = csv.read[R](\"x.csv\") else []\nlet n = rows.len()", ""},
+		{"csv.read from context", "type R {\n  a: Int\n}\nfn load() -> List[R]! { csv.read(\"x.csv\") }", ""},
+		{"csv.read needs a record", "let rows = csv.read[Int](\"x.csv\")", "`csv.read` reads rows into a record, but this is an Int | read into a record type, one field per column"},
+		{"csv.read field types", "type R {\n  a: List[Int]\n}\nlet rows = csv.read[R](\"x.csv\")", "`csv.read` cannot fill field `a` of `R`: a CSV cell cannot become a List[Int] | give each column an Int, a Float, a Str or a Bool field, optional if it may be empty"},
 	})
 }

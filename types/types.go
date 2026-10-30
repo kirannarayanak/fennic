@@ -21,6 +21,7 @@ var (
 	Bool  = &Basic{"Bool"}
 	Unit  = &Basic{"nothing"}
 	Error = &Basic{"Error"}
+	Order = &Basic{"Order"} // asc or desc, for sort_by_value
 )
 
 type List struct{ Elem Type }
@@ -83,6 +84,16 @@ type Param struct {
 // Ord is the built-in constraint satisfied by Int, Float and Str.
 var Ord = &Iface{Name: "Ord"}
 
+// Map is `Map[K, V]`. Keys are Str, Int or Bool.
+type Map struct{ Key, Val Type }
+
+// Entry is one key and its value, as `sort_by_value` and `top` give them.
+// ValName is the second field's name: "value", or "count" for `top`.
+type Entry struct {
+	Key, Val Type
+	ValName  string
+}
+
 // Tuple is `(A, B)`.
 type Tuple struct{ Elems []Type }
 
@@ -112,6 +123,8 @@ func (*Iface) typ() {}
 func (*Param) typ() {}
 func (*Func) typ()  {}
 func (*Tuple) typ() {}
+func (*Map) typ()   {}
+func (*Entry) typ() {}
 func (*Var) typ()   {}
 func (*Bad) typ()   {}
 
@@ -150,6 +163,10 @@ func Resolve(t Type) Type {
 			es[i] = Resolve(e)
 		}
 		return &Tuple{es}
+	case *Map:
+		return &Map{Resolve(t.Key), Resolve(t.Val)}
+	case *Entry:
+		return &Entry{Resolve(t.Key), Resolve(t.Val), t.ValName}
 	default:
 		return t
 	}
@@ -184,6 +201,13 @@ func String(t Type) string {
 			es = append(es, String(e))
 		}
 		return "(" + strings.Join(es, ", ") + ")"
+	case *Map:
+		return "Map[" + String(t.Key) + ", " + String(t.Val) + "]"
+	case *Entry:
+		if t.ValName == "count" {
+			return "Count[" + String(t.Key) + "]"
+		}
+		return "Entry[" + String(t.Key) + ", " + String(t.Val) + "]"
 	case *Var:
 		return "an unknown type"
 	case *Bad:
@@ -216,6 +240,17 @@ func Article(s string) string {
 		return "an " + s
 	}
 	return "a " + s
+}
+
+// keyType reports whether values of t can be map keys.
+func keyType(t Type) bool {
+	switch t := prune(t).(type) {
+	case *Basic:
+		return t == Str || t == Int || t == Bool
+	case *Var, *Bad:
+		return true
+	}
+	return false
 }
 
 // plural names a type in the plural: "Ints", "Users".
@@ -263,6 +298,10 @@ func occurs(v *Var, t Type) bool {
 				return true
 			}
 		}
+	case *Map:
+		return occurs(v, t.Key) || occurs(v, t.Val)
+	case *Entry:
+		return occurs(v, t.Key) || occurs(v, t.Val)
 	}
 	return false
 }
@@ -318,6 +357,12 @@ func unify(a, b Type) bool {
 			}
 		}
 		return unify(x.Result, y.Result)
+	case *Map:
+		y, ok := b.(*Map)
+		return ok && unify(x.Key, y.Key) && unify(x.Val, y.Val)
+	case *Entry:
+		y, ok := b.(*Entry)
+		return ok && x.ValName == y.ValName && unify(x.Key, y.Key) && unify(x.Val, y.Val)
 	case *Tuple:
 		y, ok := b.(*Tuple)
 		if !ok || len(x.Elems) != len(y.Elems) {

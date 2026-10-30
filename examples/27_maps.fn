@@ -1,0 +1,20 @@
+// A Map holds values by key. Looking a key up gives an optional.
+var stock = Map{"apples": 3, "pears": 7}
+stock["plums"] = 2
+stock["apples"] = 5
+print(stock)
+print("apples: {stock["apples"] ?? 0}")
+print("figs: {stock["figs"] ?? 0}")
+print("{stock.len()} kinds of fruit")
+
+// Maps are values: changing one through a var never changes another.
+let before = stock
+stock["pears"] = 0
+print("before: {before["pears"] ?? 0}, after: {stock["pears"] ?? 0}")
+
+let doubled = stock |> map_values(n -> n * 2)
+print(doubled)
+
+stock
+  |> sort_by_value(desc)
+  |> each(e -> print("{e.key}: {e.value}"))

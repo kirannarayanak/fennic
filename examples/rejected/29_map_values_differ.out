@@ -1,0 +1,6 @@
+error: this map's values are Ints, but this value is a Str
+ --> 29_map_values_differ.fn:1:36
+  |
+1 | let prices = Map{"tea": 3, "cake": "four"}
+  |                                    ^^^^^^
+help: make every value an Int, or use a record to hold values of different types

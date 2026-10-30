@@ -183,13 +183,19 @@ func TestTypedRuntime(t *testing.T) {
 			"Config { name: \"a\", port: 80, tags: [\"x\"], owner: none }\ntrue\n"},
 		{"json missing field fails", config +
 			`report("\{\"name\": \"a\"}")`,
-			"the JSON does not fit Config: missing field `port`\n"},
+			"the JSON does not fit Config at line 1: missing field `port`\n"},
 		{"json wrong kind fails", config +
 			`report("\{\"name\": \"a\", \"port\": \"80\", \"tags\": []}")`,
-			"the JSON does not fit Config: expected an Int at `port`, but the JSON has a string\n"},
+			"the JSON does not fit Config at line 1: expected an Int at `port`, but the JSON has a string\n"},
 		{"json nested path", config +
 			`report("\{\"name\": \"a\", \"port\": 1, \"tags\": [1]}")`,
-			"the JSON does not fit Config: expected a Str at `tags[0]`, but the JSON has a number\n"},
+			"the JSON does not fit Config at line 1: expected a Str at `tags[0]`, but the JSON has a number\n"},
+		{"json names the line", config +
+			"report(`{\n  \"name\": \"a\",\n  \"port\": 80,\n  \"tags\": [\n    \"x\",\n    7\n  ]\n}`)",
+			"the JSON does not fit Config at line 6: expected a Str at `tags[1]`, but the JSON has a number\n"},
+		{"json missing field names the object's line", config +
+			"report(`[\n]` )\nreport(`\n\n{\"name\": \"a\"}`)",
+			"the JSON does not fit Config at line 1: expected a Config, but the JSON has an array\nthe JSON does not fit Config at line 3: missing field `port`\n"},
 		{"map stops at the first failure",
 			`let xs = ["missing.txt", "also-missing.txt"] |> map(f -> fs.read(f)!) else e -> ["{e}"]` + "\n" + `print("{xs}")`,
 			"[\"cannot read \\\"missing.txt\\\": file not found\"]\n"},
@@ -252,6 +258,33 @@ func TestM0(t *testing.T) {
 				t.Fatalf("the program text differs from docs/m0-spec.md\n--- file\n%s--- spec\n%s", text, want)
 			}
 			runExpecting(t, f)
+		})
+	}
+}
+
+// csv.read failures name the file, the line and the column.
+func TestCSVFailures(t *testing.T) {
+	prog := "type R {\n  name: Str\n  n: Int\n  note: Str?\n}\n" +
+		"fn main() {\n  let rows = csv.read[R](\"data.csv\") else err -> { print(\"{err}\"); [] }\n  print(\"{rows.len()} rows\")\n}\n"
+	cases := []struct{ name, csv, want string }{
+		{"good", "name,n,note\na,1,\nb,2,x\n", "2 rows\n"},
+		{"columns in any order", "n,name\n1,a\n", "1 rows\n"},
+		{"bad cell", "name,n\na,1\nb,two\n", "data.csv line 3, column `n`: \"two\" is not an Int\n0 rows\n"},
+		{"empty cell for a required field", "name,n\na,\n", "data.csv line 2, column `n`: the cell is empty, but the field is an Int; make it optional if it may be empty\n0 rows\n"},
+		{"missing column", "name,note\na,x\n", "data.csv has no column `n`, which `R` needs\n0 rows\n"},
+		{"ragged row", "name,n\na,1,extra\n", "data.csv: line 2: wrong number of fields\n0 rows\n"},
+		{"no header", "", "data.csv: the file has no header row\n0 rows\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			os.WriteFile(filepath.Join(dir, "data.csv"), []byte(c.csv), 0o644)
+			path := filepath.Join(dir, "prog.fn")
+			os.WriteFile(path, []byte(prog), 0o644)
+			var out bytes.Buffer
+			if code := Main([]string{"run", path}, &out, &out); code != 0 || out.String() != c.want {
+				t.Errorf("exit %d\ngot:\n%s\nwant:\n%s", code, out.String(), c.want)
+			}
 		})
 	}
 }

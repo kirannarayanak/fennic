@@ -12,9 +12,10 @@ import (
 
 // Info is what the checker learned that running the program needs.
 type Info struct {
-	// JSONTargets is the type each `json.parse` call builds, keyed by the
-	// call (a *ast.CallExpr, or the *ast.PipeExpr of `text |> json.parse()`).
-	JSONTargets map[ast.Node]Type
+	// Targets is the type each `json.parse` or `csv.read` call builds,
+	// keyed by the call (a *ast.CallExpr, or the *ast.PipeExpr of
+	// `text |> json.parse()`). For csv.read it is the record of each row.
+	Targets map[ast.Node]Type
 }
 
 // Check type-checks a parsed program. It returns every problem found, in
@@ -27,13 +28,13 @@ func Check(file *ast.File, src string) ([]diag.Diagnostic, *Info) {
 		variant: map[string]*Variant{},
 		funcs:   map[string]*sig{},
 		methods: map[string]map[string]*sig{},
-		info:    &Info{JSONTargets: map[ast.Node]Type{}},
+		info:    &Info{Targets: map[ast.Node]Type{}},
 	}
 	c.declare(file)
 	c.body(file)
 	sort.SliceStable(c.diags, func(i, j int) bool { return c.diags[i].Pos.Offset < c.diags[j].Pos.Offset })
-	for n, t := range c.info.JSONTargets {
-		c.info.JSONTargets[n] = Resolve(t)
+	for n, t := range c.info.Targets {
+		c.info.Targets[n] = Resolve(t)
 	}
 	return c.diags, c.info
 }
@@ -231,6 +232,16 @@ func (c *checker) typeOf(t ast.TypeExpr, scope map[string]*Param) Type {
 				return bad
 			}
 			return &List{c.typeOf(t.Args[0], scope)}
+		case "Map":
+			if len(t.Args) != 2 {
+				c.errorf(t, "write the key and value types: `Map[Str, Int]`", "`Map` needs a key type and a value type")
+				return bad
+			}
+			m := &Map{c.typeOf(t.Args[0], scope), c.typeOf(t.Args[1], scope)}
+			if !keyType(m.Key) {
+				c.errorf(t.Args[0], "use Str, Int or Bool keys", "map keys must be Str, Int or Bool, but this is %s", article(m.Key))
+			}
+			return m
 		}
 		if len(t.Args) > 0 {
 			c.errorf(t, "remove the `[...]`", "`%s` takes no type arguments", name)
@@ -571,6 +582,30 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 		}
 	case *ast.ExprStmt:
 		c.expr(s.X, sc, x, nil)
+	case *ast.IndexAssignStmt:
+		b, ok := sc.lookup(s.Name.Name)
+		if !ok || !b.mutable {
+			c.expr(s.Index, sc, x, nil)
+			c.expr(s.Value, sc, x, nil)
+			return // the M1 check reports these
+		}
+		m, isMap := prune(b.t).(*Map)
+		if !isMap {
+			c.expr(s.Index, sc, x, nil)
+			c.expr(s.Value, sc, x, nil)
+			if !isBad(b.t) {
+				c.errorf(s.Name, "only a map entry can be set this way; to change a list, build a new one", "`%s` is %s, so `%s[...] = ...` cannot change it", s.Name.Name, article(b.t), s.Name.Name)
+			}
+			return
+		}
+		kt := c.expr(s.Index, sc, x, m.Key)
+		if a := c.assign(m.Key, kt); !a.ok {
+			c.mismatch(s.Index, m.Key, kt, a, "this map's keys are "+plural(m.Key)+", so the key must be "+article(m.Key), "pass "+article(m.Key))
+		}
+		vt := c.expr(s.Value, sc, x, m.Val)
+		if a := c.assign(m.Val, vt); !a.ok {
+			c.mismatch(s.Value, m.Val, vt, a, "this map's values are "+plural(m.Val)+", so the value must be "+article(m.Val), "pass "+article(m.Val))
+		}
 	case *ast.ForStmt:
 		t := c.expr(s.In, sc, x, nil)
 		var elem Type = bad

@@ -1,0 +1,2 @@
+let prices = Map{"tea": 3}
+print(prices[1] ?? 0)

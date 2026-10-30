@@ -23,7 +23,7 @@ type Interp struct {
 	variants map[string]*VariantType
 	methods  map[string]map[string]*Func // type name -> method name -> method
 
-	jsonTargets map[ast.Node]types.Type // what each json.parse call builds
+	targets map[ast.Node]types.Type // what each json.parse or csv.read call builds
 
 	inMain bool // running `fn main`, for the wording of errors
 
@@ -130,9 +130,9 @@ func New(file *ast.File, src, dir string, out, errw io.Writer) *Interp {
 	return in
 }
 
-// SetJSONTargets tells json.parse what each call should build, as decided
-// by the type checker. Without it json.parse builds untyped records.
-func (in *Interp) SetJSONTargets(t map[ast.Node]types.Type) { in.jsonTargets = t }
+// SetTargets tells json.parse and csv.read what each call should build, as
+// decided by the type checker. Without it json.parse builds untyped records.
+func (in *Interp) SetTargets(t map[ast.Node]types.Type) { in.targets = t }
 
 func (in *Interp) constructor(vt *VariantType) *Builtin {
 	return &Builtin{Name: vt.Name, Fn: func(in *Interp, call *callSite, args []Value) Value {

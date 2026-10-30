@@ -1,0 +1,2 @@
+let names = Map{"a": "Ada", "b": "Bo"}
+let best = names |> top(1)

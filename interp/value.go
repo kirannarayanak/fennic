@@ -85,6 +85,44 @@ type Closure struct {
 // Tuple is `(a, b)`.
 type Tuple struct{ Elems []Value }
 
+// Map is `Map{k: v}`. It keeps its keys in the order they were first set,
+// so printing a map is deterministic. Keys are Str, Int or Bool.
+type Map struct {
+	Keys []Value
+	Vals []Value
+}
+
+func (m *Map) index(k Value) int {
+	for i, key := range m.Keys {
+		if key == k {
+			return i
+		}
+	}
+	return -1
+}
+
+// with returns a copy of m with key k set to v. Maps are values: changing
+// one through a `var` never changes another name's map.
+func (m *Map) with(k, v Value) *Map {
+	out := &Map{Keys: append([]Value(nil), m.Keys...), Vals: append([]Value(nil), m.Vals...)}
+	if i := out.index(k); i >= 0 {
+		out.Vals[i] = v
+	} else {
+		out.Keys = append(out.Keys, k)
+		out.Vals = append(out.Vals, v)
+	}
+	return out
+}
+
+// Order is `asc` or `desc`, for sort_by_value.
+type Order string
+
+// The record types of map entries: what sort_by_value and top give.
+var (
+	entryType = &RecordType{Name: "Entry", Fields: []string{"key", "value"}}
+	countType = &RecordType{Name: "Count", Fields: []string{"key", "count"}}
+)
+
 // Func is a declared function or method.
 type Func struct {
 	Decl *ast.FnDecl
@@ -124,6 +162,10 @@ func kindName(v Value) string {
 		return "List"
 	case *Tuple:
 		return "tuple"
+	case *Map:
+		return "Map"
+	case Order:
+		return "order"
 	case *Record:
 		if v.Type.Name == "" {
 			return "record"

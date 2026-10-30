@@ -16,6 +16,5 @@ The harness reads `// expect:` lines anywhere in the file: `test` runs the
 test blocks, `args a b` passes command-line arguments, `env NAME=value` sets
 an environment variable, `exit 1` expects a failure.
 
-Present so far, with the core language: 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13,
-14, 15, 16. Still to come: 5 (maps), 11 and 17 (collection built-ins),
-18, 19 and 20 (concurrency and data formats).
+Present so far: 1–17. Still to come: 18, 19 and 20 (concurrency and data
+formats). notes.txt, sales.csv and config.json are their fixtures.

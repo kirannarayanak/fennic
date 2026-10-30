@@ -156,6 +156,15 @@ type AssignStmt struct {
 	Value Expr
 }
 
+// IndexAssignStmt is `m[k] = v`, which changes one entry of a map held by
+// a `var`.
+type IndexAssignStmt struct {
+	Span
+	Name  *Ident
+	Index Expr
+	Value Expr
+}
+
 // ForStmt is `for x in items { ... }`. Var is `_` when the value is unused.
 type ForStmt struct {
 	Span
@@ -270,6 +279,17 @@ type IndexExpr struct {
 	Span
 	X     Expr
 	Index Expr
+}
+
+// MapLit is `Map{"a": 1, "b": 2}`.
+type MapLit struct {
+	Span
+	Entries []*MapEntry
+}
+
+type MapEntry struct {
+	Span
+	Key, Value Expr
 }
 
 // TupleLit is `(a, b)`.
@@ -441,24 +461,26 @@ type BadExpr struct{ Span }
 // BadStmt stands in for a statement or declaration that failed to parse.
 type BadStmt struct{ Span }
 
-func (*FnDecl) item()        {}
-func (*RecordDecl) item()    {}
-func (*SumDecl) item()       {}
-func (*InterfaceDecl) item() {}
-func (*TestDecl) item()      {}
-func (*LetStmt) item()       {}
-func (*AssignStmt) item()    {}
-func (*AssertStmt) item()    {}
-func (*ExprStmt) item()      {}
-func (*ForStmt) item()       {}
-func (*BadStmt) item()       {}
+func (*FnDecl) item()          {}
+func (*RecordDecl) item()      {}
+func (*SumDecl) item()         {}
+func (*InterfaceDecl) item()   {}
+func (*TestDecl) item()        {}
+func (*LetStmt) item()         {}
+func (*AssignStmt) item()      {}
+func (*AssertStmt) item()      {}
+func (*ExprStmt) item()        {}
+func (*ForStmt) item()         {}
+func (*IndexAssignStmt) item() {}
+func (*BadStmt) item()         {}
 
-func (*LetStmt) stmt()    {}
-func (*AssignStmt) stmt() {}
-func (*AssertStmt) stmt() {}
-func (*ExprStmt) stmt()   {}
-func (*ForStmt) stmt()    {}
-func (*BadStmt) stmt()    {}
+func (*LetStmt) stmt()         {}
+func (*AssignStmt) stmt()      {}
+func (*AssertStmt) stmt()      {}
+func (*ExprStmt) stmt()        {}
+func (*ForStmt) stmt()         {}
+func (*IndexAssignStmt) stmt() {}
+func (*BadStmt) stmt()         {}
 
 func (*NamedType) typeExpr()    {}
 func (*OptionalType) typeExpr() {}
@@ -482,6 +504,7 @@ func (*PropagateExpr) expr() {}
 func (*ElseExpr) expr()      {}
 func (*IndexExpr) expr()     {}
 func (*TupleLit) expr()      {}
+func (*MapLit) expr()        {}
 func (*IfExpr) expr()        {}
 func (*FailExpr) expr()      {}
 func (*FuncLit) expr()       {}

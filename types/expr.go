@@ -80,6 +80,8 @@ func (c *checker) expr(e ast.Expr, sc *scope, x *ctx, want Type) Type {
 		return c.fail(e, sc, x)
 	case *ast.IndexExpr:
 		return c.index(e, sc, x)
+	case *ast.MapLit:
+		return c.mapLit(e, sc, x, want)
 	case *ast.TupleLit:
 		var wantElems []Type
 		if tt, ok := prune(want).(*Tuple); ok && len(tt.Elems) == len(e.Elems) {
@@ -129,9 +131,11 @@ var builtins = map[string]bool{
 	"print": true, "len": true, "first": true, "last": true, "sum": true, "map": true,
 	"each": true, "filter": true, "sort_by": true, "take": true, "map_par": true,
 	"sort": true, "reduce": true, "env": true,
+	"lower": true, "words": true, "tally": true, "top": true, "group_by": true,
+	"map_values": true, "sum_by": true, "sort_by_value": true,
 }
 
-var modules = map[string]bool{"fs": true, "json": true, "log": true, "int": true}
+var modules = map[string]bool{"fs": true, "json": true, "log": true, "int": true, "csv": true}
 
 func (c *checker) ident(e *ast.Ident, sc *scope) Type {
 	if e.Name == "_" {
@@ -143,6 +147,9 @@ func (c *checker) ident(e *ast.Ident, sc *scope) Type {
 	}
 	if v, ok := c.variant[e.Name]; ok && len(v.Fields) == 0 {
 		return v.Sum
+	}
+	if e.Name == "asc" || e.Name == "desc" {
+		return Order
 	}
 	if s, ok := c.funcs[e.Name]; ok {
 		if len(s.tparams) > 0 {
@@ -341,6 +348,8 @@ func (c *checker) member(e ast.Node, recv Type, xe ast.Expr, name *ast.Ident, op
 		c.errorf(xe, "use it where its type is known, such as the argument of `map` or `filter`", "cannot tell what type `%s` is, so `.%s` cannot be checked", c.text(xe), name.Name)
 	case *Named:
 		c.errorf(name, c.didYouMean(name.Name, r, true), "`%s` has no field `%s`", r.Name, name.Name)
+	case *Entry:
+		c.errorf(name, fmt.Sprintf("its fields are key and %s", r.ValName), "%s has no field `%s`", Article(String(recv)), name.Name)
 	default:
 		c.errorf(name, "", "%s has no field or method `%s`", Article(String(recv)), name.Name)
 	}
@@ -366,6 +375,13 @@ func (c *checker) lookupMember(t Type, name string) Type {
 		}
 	case *Iface:
 		return ifaceMember(t, name)
+	case *Entry:
+		switch name {
+		case "key":
+			return t.Key
+		case t.ValName:
+			return t.Val
+		}
 	case *Param:
 		if in, ok := t.Constraint.(*Iface); ok && in != Ord {
 			return ifaceMember(in, name)
@@ -973,6 +989,11 @@ func (c *checker) index(e *ast.IndexExpr, sc *scope, x *ctx) Type {
 	switch l := prune(t).(type) {
 	case *Bad:
 		return bad
+	case *Map:
+		if a := c.assign(l.Key, it); !a.ok {
+			c.mismatch(e.Index, l.Key, it, a, "this map's keys are "+plural(l.Key)+", so the key must be "+article(l.Key), "pass "+article(l.Key))
+		}
+		return optional(l.Val)
 	case *List:
 		if a := c.assign(Int, it); !a.ok {
 			c.mismatch(e.Index, Int, it, a, "a list index needs an Int", "pass an Int")
@@ -983,7 +1004,7 @@ func (c *checker) index(e *ast.IndexExpr, sc *scope, x *ctx) Type {
 		unify(l, &List{elem})
 		return optional(elem)
 	}
-	c.errorf(e.X, "", "only a List can be indexed with `[...]`, but this is %s", article(t))
+	c.errorf(e.X, "", "only a List or a Map can be indexed with `[...]`, but this is %s", article(t))
 	return bad
 }
 
@@ -1013,4 +1034,30 @@ func (c *checker) funcLit(e *ast.FuncLit, sc *scope, x *ctx) Type {
 		result = failable(result)
 	}
 	return &Func{params, result}
+}
+
+// mapLit checks `Map{k: v, ...}`. Every key has one type and every value
+// another.
+func (c *checker) mapLit(e *ast.MapLit, sc *scope, x *ctx, want Type) Type {
+	var key, val Type
+	if m, ok := prune(want).(*Map); ok {
+		key, val = m.Key, m.Val
+	} else {
+		key, val = c.fresh(), c.fresh()
+	}
+	for _, en := range e.Entries {
+		kt := c.expr(en.Key, sc, x, key)
+		if a := c.assign(key, kt); !a.ok {
+			c.errorf(en.Key, "make every key "+article(key), "this map's keys are %s, but this key is %s", plural(key), article(kt))
+		}
+		vt := c.expr(en.Value, sc, x, val)
+		if a := c.assign(val, vt); !a.ok {
+			c.errorf(en.Value, "make every value "+article(val)+", or use a record to hold values of different types",
+				"this map's values are %s, but this value is %s", plural(val), article(vt))
+		}
+	}
+	if !keyType(key) {
+		c.errorf(e, "use Str, Int or Bool keys", "map keys must be Str, Int or Bool, but these are %s", plural(key))
+	}
+	return &Map{key, val}
 }

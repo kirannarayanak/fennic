@@ -1,0 +1,4 @@
+let stock = Map{"apples": 3}
+stock
+  |> sort_by_value(desc)
+  |> each(e -> print("{e.key} {e.count}"))

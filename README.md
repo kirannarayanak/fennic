@@ -152,6 +152,7 @@ help: handle the failure first: `notes else ""` gives a fallback, and `notes!` p
 | Control flow | `if a > b { a } else { b }` is an expression; `and`, `or`, `not` combine Bools |
 | Loops | `for x in xs { ... }`, `for n in 1..10 { ... }` (both ends included), `total += n` |
 | Patterns | `match` takes apart variants, tuples `(0, _)`, lists `[x, y]` and literals, and must cover every case |
+| Maps | `Map{"apples": 3}`; `m[k]` gives an optional, `m[k] = v` sets an entry of a `var` |
 | Entry point | `fn main()` or `fn main(args: List[Str])` runs after the top level |
 | Pipelines | `xs \|> filter(x -> x > 0) \|> take(10)` |
 | Interfaces | satisfied structurally; methods are `fn Type.name(self, ...)` |
@@ -164,9 +165,11 @@ programs the checker must refuse, and `examples/m0` runs the programs of the
 spec as written.
 
 Built-in functions: `print`, `len`, `first`, `last`, `sum`, `map`, `each`,
-`filter`, `sort_by`, `sort`, `reduce`, `take`, `map_par`, `env`, plus
-`fs.read`, `json.parse`, `int.parse` and `log.warn`. Lists have `.len()` and
-`.push(x)`; strings have `.len()`. Backtick strings, `` `{"a": 1}` ``, have no
+`filter`, `sort_by`, `sort`, `reduce`, `take`, `map_par`, `env`, `lower`,
+`words`, `tally`, `top`, `group_by`, `map_values`, `sum_by`,
+`sort_by_value`, plus `fs.read`, `json.parse`, `csv.read`, `int.parse` and
+`log.warn`. Lists have `.len()` and `.push(x)`; strings and maps have
+`.len()`. Backtick strings, `` `{"a": 1}` ``, have no
 escapes and no interpolation.
 
 ## Development

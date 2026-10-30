@@ -110,6 +110,8 @@ func dump(b *strings.Builder, n Node) {
 			op = n.Op.String()
 		}
 		list(op, n.Name.Name, n.Value)
+	case *IndexAssignStmt:
+		list("=", "("+"index "+n.Name.Name+" "+Dump(n.Index)+")", n.Value)
 	case *ForStmt:
 		list("for", n.Var.Name, n.In, n.Body)
 	case *AssertStmt:
@@ -191,6 +193,12 @@ func dump(b *strings.Builder, n Node) {
 		}
 	case *IndexExpr:
 		list("index", n.X, n.Index)
+	case *MapLit:
+		args := make([]any, len(n.Entries))
+		for i, e := range n.Entries {
+			args[i] = "(" + Dump(e.Key) + " " + Dump(e.Value) + ")"
+		}
+		list("map", args...)
 	case *TupleLit:
 		args := make([]any, len(n.Elems))
 		for i, e := range n.Elems {

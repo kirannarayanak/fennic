@@ -1,0 +1,10 @@
+// lower, words, tally and top count things in text.
+let text = "It was the best of times, it was the worst of times."
+let counts = text |> lower() |> words() |> tally()
+print(counts)
+
+counts
+  |> top(3)
+  |> each(e -> print("{e.key} {e.count}"))
+
+print("{"Don't stop -- won't stop!" |> words()}")

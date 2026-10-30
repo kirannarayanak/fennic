@@ -56,7 +56,7 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	}
 
 	in := interp.New(file, src, filepath.Dir(path), stdout, stderr)
-	in.SetJSONTargets(info.JSONTargets)
+	in.SetTargets(info.Targets)
 	if err := in.Run(); err != nil {
 		render(stderr, err.(*interp.RuntimeError).Diag)
 		return 1

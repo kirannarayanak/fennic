@@ -1,0 +1,2 @@
+let stock = Map{"apples": 3}
+stock["pears"] = 7

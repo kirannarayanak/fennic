@@ -389,3 +389,14 @@ func TestM3Expressions(t *testing.T) {
 		{"else handler", "let p = parse(s) else err -> {\n  0\n}", `(let p (else (call parse s) (err) (block 0)))`},
 	})
 }
+
+func TestMaps(t *testing.T) {
+	runParseCases(t, []parseCase{
+		{"literal", `let m = Map{"a": 1, "b": 2}`, `(let m (map ("a" 1) ("b" 2)))`},
+		{"empty", `let m = Map{}`, `(let m (map))`},
+		{"across lines", "let m = Map{\n  \"a\": 1,\n  \"b\": 2,\n}", `(let m (map ("a" 1) ("b" 2)))`},
+		{"set an entry", `stock["plums"] = 2`, `(= (index stock "plums") 2)`},
+		{"look up", `let n = stock["figs"] ?? 0`, `(let n (?? (index stock "figs") 0))`},
+		{"Map type", "fn f(m: Map[Str, Int]) { }", `(fn f ((m Map[Str, Int])) (block))`},
+	})
+}

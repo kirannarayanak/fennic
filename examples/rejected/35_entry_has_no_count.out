@@ -1,0 +1,6 @@
+error: an Entry[Str, Int] has no field `count`
+ --> 35_entry_has_no_count.fn:4:34
+  |
+4 |   |> each(e -> print("{e.key} {e.count}"))
+  |                                  ^^^^^
+help: its fields are key and value

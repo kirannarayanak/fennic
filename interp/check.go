@@ -97,6 +97,10 @@ func (c *checker) stmt(s ast.Stmt) {
 	case *ast.AssignStmt:
 		c.expr(s.Value)
 		c.assign(s.Name, "assign to")
+	case *ast.IndexAssignStmt:
+		c.expr(s.Index)
+		c.expr(s.Value)
+		c.assign(s.Name, "change an entry of")
 	case *ast.ForStmt:
 		c.expr(s.In)
 		c.push()
@@ -172,6 +176,11 @@ func (c *checker) expr(e ast.Expr) {
 	case *ast.TupleLit:
 		for _, x := range e.Elems {
 			c.expr(x)
+		}
+	case *ast.MapLit:
+		for _, en := range e.Entries {
+			c.expr(en.Key)
+			c.expr(en.Value)
 		}
 	case *ast.IfExpr:
 		c.expr(e.Cond)

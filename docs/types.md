@@ -24,6 +24,8 @@ acceptance suite.
 | type parameter | `T` in `fn f[T](...)` | |
 | error | (no name to write) | `err` in `else err -> ...` |
 | tuple | (no name to write) | `(1, "a")` |
+| map | `Map[K, V]` | `Map{"a": 1}` |
+| map entry | (no name to write) | what `sort_by_value` and `top` give: `.key` and `.value`, or `.key` and `.count` |
 
 Records and sum types are nominal: two types with the same fields are
 different types. Interfaces are structural.
@@ -130,6 +132,12 @@ none when out of range. Lambdas take one or more parameters,
 or a Str, and `.push(x)` on a List held by a `var`; on a `let` it is an
 error. `print` shows any value interpolation accepts.
 
+**Maps.** `Map{k: v, ...}` has one key type and one value type; keys are
+Str, Int or Bool. `m[k]` gives `V?`. `m[k] = v` changes one entry of a map
+held by a `var`; like `.push`, it makes a new map, so another name holding
+the old one does not see the change. Maps keep their keys in the order they
+were first set, and two maps are equal when they hold the same entries.
+
 **Entry point.** `fn main()` or `fn main(args: List[Str])` runs after the
 top-level statements, and may not have a result. `!` and `fail` in `main`
 stop the program, as at the top level.
@@ -151,13 +159,29 @@ sort(List[T]) -> List[T]                       T: Ord
 reduce(List[T], (T, T) -> T) -> T?
 first(List[T], (T) -> Bool) -> T?
 env(Str) -> Str?
+lower(Str) -> Str
+words(Str) -> List[Str]                        runs of letters, digits and apostrophes
+tally(List[T]) -> Map[T, Int]                  T is a key type
+top(Map[K, Int], Int) -> List[Count[K]]        most first; ties in first-seen order
+group_by(List[T], (T) -> K) -> Map[K, List[T]]
+map_values(Map[K, V], (V) -> W) -> Map[K, W]
+sum_by(List[T], (T) -> N) -> N                 N is Int or Float
+sort_by_value(Map[K, V], asc | desc) -> List[Entry[K, V]]
+csv.read[T](Str) -> List[T]!                   T is a record; or from context
 int.parse(Str) -> Int!
 fs.read(Str) -> Str!
 json.parse(Str) -> T!                          T from the expected type, or json.parse[T]
 ```
 
-If the function passed to `map`, `each`, `filter`, `sort_by` or `map_par`
-uses `!`, the call's result is failable and the first failure stops it.
+If the function passed to `map`, `each`, `filter`, `sort_by`, `map_par`,
+`group_by`, `map_values` or `sum_by` uses `!`, the call's result is
+failable and the first failure stops it.
+
+`csv.read` takes the first row as column names; each record field takes
+the column of the same name, in any order. An empty cell fills an optional
+field with none. A failure names the file, the line and the column.
+`json.parse` failures name the line where the value that does not fit
+starts.
 
 ## Runtime changes that come with M2
 

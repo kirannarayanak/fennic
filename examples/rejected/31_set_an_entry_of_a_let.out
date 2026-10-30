@@ -1,0 +1,6 @@
+error: cannot change an entry of `stock` because it was declared with `let`
+ --> 31_set_an_entry_of_a_let.fn:2:1
+  |
+2 | stock["pears"] = 7
+  | ^^^^^
+help: change line 1 to `var stock = Map{"apples": 3}` if `stock` needs to change

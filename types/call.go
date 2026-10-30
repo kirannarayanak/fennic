@@ -239,6 +239,10 @@ func subst(t Type, m map[*Param]Type) Type {
 			es[i] = subst(e, m)
 		}
 		return &Tuple{es}
+	case *Map:
+		return &Map{subst(t.Key, m), subst(t.Val, m)}
+	case *Entry:
+		return &Entry{subst(t.Key, m), subst(t.Val, m), t.ValName}
 	}
 	return t
 }
@@ -266,7 +270,8 @@ func (c *checker) construct(node ast.Node, v *Variant, args []ast.Expr, sc *scop
 func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope, x *ctx, want Type) Type {
 	arity := map[string]int{
 		"print": 1, "log.warn": 1, "len": 1, "last": 1, "sum": 1, "fs.read": 1, "json.parse": 1,
-		"sort": 1, "env": 1, "int.parse": 1,
+		"sort": 1, "env": 1, "int.parse": 1, "lower": 1, "words": 1, "tally": 1, "csv.read": 1,
+		"top": 2, "group_by": 2, "map_values": 2, "sum_by": 2, "sort_by_value": 2,
 		"map": 2, "each": 2, "filter": 2, "sort_by": 2, "take": 2, "map_par": 2, "reduce": 2,
 	}
 	if name == "first" {
@@ -311,6 +316,67 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 	case "int.parse":
 		strArg(0)
 		return &Fail{Int}
+	case "lower":
+		strArg(0)
+		return Str
+	case "words":
+		strArg(0)
+		return &List{Str}
+	case "tally":
+		elem := c.listArg(name, args[0], sc, x)
+		if !keyType(elem) {
+			c.errorf(args[0], "tally a list of Strs, Ints or Bools, such as a key taken from each element with `map`", "`tally` counts Strs, Ints or Bools, but this list holds %s", plural(elem))
+		}
+		return &Map{elem, Int}
+	case "top":
+		m := c.mapArg(name, args[0], sc, x)
+		if m != nil {
+			if a := c.assign(Int, m.Val); !a.ok {
+				c.errorf(args[0], "count with `tally` first, then take the top", "`top` needs a Map of counts, but this map's values are %s", plural(m.Val))
+			}
+		}
+		got := c.expr(args[1], sc, x, Int)
+		if a := c.assign(Int, got); !a.ok {
+			c.mismatch(args[1], Int, got, a, "`top` needs an Int", "write how many, like `top(5)`")
+		}
+		if m == nil {
+			return bad
+		}
+		return &List{&Entry{m.Key, Int, "count"}}
+	case "sort_by_value":
+		m := c.mapArg(name, args[0], sc, x)
+		got := c.expr(args[1], sc, x, Order)
+		if a := c.assign(Order, got); !a.ok {
+			c.mismatch(args[1], Order, got, a, "`sort_by_value` needs an order", "write `asc` or `desc`")
+		}
+		if m == nil {
+			return bad
+		}
+		if _, unknown := prune(m.Val).(*Var); !unknown && !ordered(m.Val) {
+			c.errorf(args[0], "map the values to Ints, Floats or Strs first", "`sort_by_value` needs values that can be ordered, but these are %s", plural(m.Val))
+		}
+		return &List{&Entry{m.Key, m.Val, "value"}}
+	case "map_values":
+		m := c.mapArg(name, args[0], sc, x)
+		if m == nil {
+			c.expr(args[1], sc, x, nil)
+			return bad
+		}
+		ft := c.expr(args[1], sc, x, &Func{[]Type{m.Val}, c.fresh()})
+		f, ok := prune(ft).(*Func)
+		if !ok || len(f.Params) != 1 {
+			if !isBad(ft) {
+				c.errorf(args[1], "give it a function of one value, like `v -> ...`", "`map_values` needs a function of each value")
+			}
+			return bad
+		}
+		if fr, failing := prune(f.Result).(*Fail); failing {
+			return &Fail{&Map{m.Key, fr.Elem}}
+		}
+		return &Map{m.Key, f.Result}
+	case "csv.read":
+		strArg(0)
+		return c.csvRead(node, want)
 	case "sort":
 		elem := c.listArg(name, args[0], sc, x)
 		if _, unknown := prune(elem).(*Var); !unknown && !ordered(elem) {
@@ -394,7 +460,8 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		return &List{elem}
 	}
 
-	// map, each, filter, sort_by, map_par: a list and a function of its elements.
+	// map, each, filter, sort_by, map_par, group_by, sum_by: a list and a
+	// function of its elements.
 	if name == "map_par" && !x.insideTogether() {
 		c.errorf(node, "wrap it: `together { xs |> map_par(f) }!`", "map_par spawns tasks, so it must run inside a `together` block")
 	}
@@ -438,6 +505,20 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 			c.errorf(args[1], "return an Int, a Float or a Str from the key function", "sort_by needs a key that can be ordered, but this one is %s", article(result))
 		}
 		out = &List{elem}
+	case "group_by":
+		if !keyType(result) {
+			c.errorf(args[1], "group by a Str, an Int or a Bool, such as one field", "`group_by` needs a key that is a Str, an Int or a Bool, but this one is %s", article(result))
+		}
+		out = &Map{result, &List{elem}}
+	case "sum_by":
+		switch {
+		case prune(result) == Int || prune(result) == Float || isBad(result):
+		case func() bool { _, v := prune(result).(*Var); return v }():
+			unify(result, Int)
+		default:
+			c.errorf(args[1], "return an Int or a Float from the function", "`sum_by` adds up Ints or Floats, but this function gives %s", article(result))
+		}
+		out = result
 	}
 	if failing {
 		return failable(out)
@@ -483,7 +564,7 @@ func (c *checker) jsonParse(node ast.Node, want Type) Type {
 		c.errorf(node, "parse into a record, a List, a Str, an Int, a Float or a Bool", "`json.parse` cannot produce %s: %s", article(target), why)
 		return bad
 	}
-	c.info.JSONTargets[node] = target
+	c.info.Targets[node] = target
 	return &Fail{target}
 }
 
@@ -538,8 +619,9 @@ func typeArgsOf(node ast.Node) []ast.TypeExpr {
 func (c *checker) builtinMethod(node ast.Node, fn *ast.FieldExpr, recv Type, args []ast.Expr, sc *scope, x *ctx) (Type, bool) {
 	r := prune(recv)
 	l, isList := r.(*List)
+	_, isMap := r.(*Map)
 	isStr := r == Str
-	if !isList && !isStr {
+	if !isList && !isStr && !isMap {
 		return nil, false
 	}
 	want := func(n int) bool {
@@ -568,4 +650,61 @@ func (c *checker) builtinMethod(node ast.Node, fn *ast.FieldExpr, recv Type, arg
 		return Unit, true
 	}
 	return nil, false
+}
+
+// mapArg checks a built-in's map argument. It returns nil after reporting
+// a value that is not a map.
+func (c *checker) mapArg(name string, a ast.Expr, sc *scope, x *ctx) *Map {
+	t := c.expr(a, sc, x, nil)
+	switch m := prune(t).(type) {
+	case *Map:
+		return m
+	case *Var:
+		mt := &Map{c.fresh(), c.fresh()}
+		unify(m, mt)
+		return mt
+	case *Bad:
+		return nil
+	}
+	if f, ok := prune(t).(*Fail); ok {
+		if _, isMap := prune(f.Elem).(*Map); isMap {
+			c.mismatch(a, f.Elem, t, assignment{}, "`"+name+"` needs a Map", "")
+			return nil
+		}
+	}
+	c.errorf(a, "", "`%s` needs a Map, but this is %s", name, article(t))
+	return nil
+}
+
+// csvRead decides what record type `csv.read` builds: from its type
+// argument, or from the List type expected of it.
+func (c *checker) csvRead(node ast.Node, want Type) Type {
+	var rec Type
+	if targs := typeArgsOf(node); len(targs) == 1 {
+		rec = c.typeOf(targs[0], nil)
+	} else if l, ok := prune(success(want)).(*List); ok {
+		rec = l.Elem
+	}
+	if rec == nil || unknownType(rec) {
+		c.errorf(node, "name the record type each row becomes: `csv.read[Sale](path)`", "cannot tell what type `csv.read` should produce here")
+		return bad
+	}
+	n, ok := prune(rec).(*Named)
+	if !ok || n.IsSum() {
+		c.errorf(node, "read into a record type, one field per column", "`csv.read` reads rows into a record, but this is %s", article(rec))
+		return bad
+	}
+	for _, f := range n.Fields {
+		ft := prune(f.Type)
+		if o, opt := ft.(*Opt); opt {
+			ft = prune(o.Elem)
+		}
+		if ft != Int && ft != Float && ft != Str && ft != Bool {
+			c.errorf(node, "give each column an Int, a Float, a Str or a Bool field, optional if it may be empty",
+				"`csv.read` cannot fill field `%s` of `%s`: a CSV cell cannot become %s", f.Name, n.Name, article(f.Type))
+			return bad
+		}
+	}
+	c.info.Targets[node] = rec
+	return &Fail{&List{rec}}
 }

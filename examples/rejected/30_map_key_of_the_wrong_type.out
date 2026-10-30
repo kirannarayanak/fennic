@@ -1,0 +1,6 @@
+error: this map's keys are Strs, so the key must be a Str, but this is an Int
+ --> 30_map_key_of_the_wrong_type.fn:2:14
+  |
+2 | print(prices[1] ?? 0)
+  |              ^
+help: to turn a value into a Str, interpolate it: "{1}"

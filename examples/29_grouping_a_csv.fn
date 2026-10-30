@@ -1,0 +1,22 @@
+// csv.read turns each row into a record. An empty cell fills an optional
+// field with none.
+type Score {
+  name: Str
+  team: Str
+  points: Int
+  bonus: Int?
+}
+
+fn main() {
+  let scores = csv.read[Score]("data/scores.csv")!
+  print("{scores.len()} rows")
+
+  let by_team = scores |> group_by(s -> s.team)
+  by_team
+    |> map_values(rows -> rows |> sum_by(s -> s.points + (s.bonus ?? 0)))
+    |> sort_by_value(desc)
+    |> each(e -> print("{e.key}\t{e.value}"))
+
+  let missing = csv.read[Score]("data/missing.csv") else err -> { print("{err}"); [] }
+  print("{missing.len()} rows from a missing file")
+}

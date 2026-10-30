@@ -59,6 +59,19 @@ func write(b *strings.Builder, v Value) {
 			write(b, f)
 		}
 		b.WriteString(" }")
+	case *Map:
+		b.WriteString("Map{")
+		for i, k := range v.Keys {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			write(b, k)
+			b.WriteString(": ")
+			write(b, v.Vals[i])
+		}
+		b.WriteByte('}')
+	case Order:
+		b.WriteString(string(v))
 	case *Tuple:
 		b.WriteByte('(')
 		for i, e := range v.Elems {

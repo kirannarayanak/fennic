@@ -1,0 +1,9 @@
+fn main() {
+  let text = fs.read("notes.txt") else ""
+  text
+    |> lower()
+    |> words()
+    |> tally()
+    |> top(5)
+    |> each(e -> print("{e.key}\t{e.count}"))
+}
