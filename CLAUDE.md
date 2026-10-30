@@ -172,5 +172,5 @@ The syntax reference left these open. They were approved along with `examples/`;
 - `log.warn` writes `warn: <msg>` to stderr.
 - `fennic test` evaluates the top level, then each test.
 - Assigning to a `let` is caught before the program runs.
-- `fs.read` paths resolve against the program file's directory.
+- File paths (`fs.read`, `csv.read`, `fs.list`, `fs.write`) resolve against the working directory the program runs in, like a path typed on the command line. Corrected in M3 round two: they first resolved against the program file's directory, which broke every tool that takes a path argument (programs/RECORD.md). Module imports, once they exist, resolve against the importing file.
 - Diagnostics: `error:` line, ` --> file:line:col`, source line with carets, `help:` line naming the fix. Columns count characters, 1-based.

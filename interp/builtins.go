@@ -532,18 +532,19 @@ func readFailure(path string, err error) string {
 	return fmt.Sprintf("cannot read %s: %s", show(path), reason)
 }
 
-// readFile reads a file, resolving a relative path against the program's
-// directory.
+// readFile reads a file. A relative path is relative to the directory the
+// program was run from, like a path typed on the command line.
 func (in *Interp) readFile(path string) ([]byte, error) {
 	return os.ReadFile(in.resolve(path))
 }
 
-// resolve makes a relative path relative to the program's directory.
+// resolve is where every file operation turns a path into a file. A
+// relative path stays relative to the working directory of the process:
+// the directory the user ran `fennic` in. It is not the program file's
+// directory, which is kept only for resolving module imports, once Fennic
+// has them.
 func (in *Interp) resolve(path string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(in.dir, path)
+	return path
 }
 
 // builtinList lists the files in dir whose names match pattern, such as

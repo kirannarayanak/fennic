@@ -25,6 +25,7 @@ func run(t *testing.T, src string) (out, msg, help string) {
 	var buf bytes.Buffer
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("hi"), 0o644)
+	t.Chdir(dir) // file paths are relative to where the program runs
 	in := New(file, src, dir, &buf, &buf)
 	if err := in.Run(); err != nil {
 		re := err.(*RuntimeError)

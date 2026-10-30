@@ -16,7 +16,7 @@ import (
 type Interp struct {
 	file    *ast.File
 	src     string
-	dir     string // fs.read paths resolve against this
+	dir     string // the program file's directory, for module imports once they exist; file paths do not use it
 	globals *Env
 
 	records  map[string]*RecordType

@@ -4,10 +4,6 @@ Three programs written in Fennic to be kept and used, as M3 step 4 asks.
 They are not examples: they don't cover features, they do jobs. What each
 one reached for and could not have is recorded in [RECORD.md](RECORD.md).
 
-Run each from its own directory. Fennic resolves file paths against the
-program's directory, so paths given on the command line are read relative
-to it, not to where you are (RECORD.md, "Across all three").
-
 | Program | Does | Run |
 | --- | --- | --- |
 | `reconcile/reconcile.fn` | compares a source-layer and a warehouse-layer metric export, joined on metric name, and prints the metrics that differ by more than 3%, largest first, then those on one side only | `fennic run reconcile.fn source.csv warehouse.csv` |

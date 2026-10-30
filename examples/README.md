@@ -10,7 +10,7 @@ M1 is done when every program here runs and its output matches the file beside i
 - Directives on line 1, used by the harness only:
   - `// expect: exit 1` means the program must exit with status 1. Otherwise it must exit with 0.
   - `// expect: test` means run `fennic test NN_name.fn` instead of `fennic run`.
-- `fs.read` paths resolve against the directory of the program file, not the current directory. Fixtures live in `data/`.
+- File paths resolve against the working directory, so the harness runs each program from inside `examples/`. Fixtures live in `data/`.
 
 ## Coverage
 

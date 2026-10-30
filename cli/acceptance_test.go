@@ -297,6 +297,7 @@ func TestCSVFailures(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			dir := t.TempDir()
 			os.WriteFile(filepath.Join(dir, "data.csv"), []byte(c.csv), 0o644)
+			t.Chdir(dir)
 			path := filepath.Join(dir, "prog.fn")
 			os.WriteFile(path, []byte(prog), 0o644)
 			var out bytes.Buffer
@@ -320,11 +321,15 @@ func TestPrograms(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.program, func(t *testing.T) {
-			path := filepath.Join("../programs", c.program)
+			path, err := filepath.Abs(filepath.Join("../programs", c.program))
+			if err != nil {
+				t.Fatal(err)
+			}
 			want, err := os.ReadFile(strings.TrimSuffix(path, ".fn") + ".out")
 			if err != nil {
 				t.Fatal(err)
 			}
+			t.Chdir(filepath.Dir(path)) // the sample inputs sit beside each program
 			var out bytes.Buffer
 			if code := Main(append([]string{"run", path}, c.args...), &out, &out); code != 0 {
 				t.Errorf("exit status %d", code)
@@ -370,5 +375,20 @@ func TestJSONTargetsAgree(t *testing.T) {
 				t.Errorf("the checker accepts json.parse into %s, but running it gave (exit %d):\n%s", c.target, code, out.String())
 			}
 		})
+	}
+}
+
+// A path given on the command line is relative to where the program is
+// run, not to the program file.
+func TestPathsAreRelativeToTheCaller(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "tools"), 0o755)
+	os.WriteFile(filepath.Join(root, "tools", "show.fn"), []byte("fn main(args: List[Str]) {\n  print(fs.read(args[0] ?? \"\")!)\n}\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "data.txt"), []byte("from the caller's directory"), 0o644)
+	os.WriteFile(filepath.Join(root, "tools", "data.txt"), []byte("from the program's directory"), 0o644)
+	t.Chdir(root)
+	var out bytes.Buffer
+	if code := Main([]string{"run", "tools/show.fn", "data.txt"}, &out, &out); code != 0 || out.String() != "from the caller's directory\n" {
+		t.Errorf("exit %d, got %q", code, out.String())
 	}
 }
