@@ -1,0 +1,11 @@
+// totals for the report
+fn total(xs: List[Int]) -> Int {
+// sum them
+  sum(xs)       // all of them
+}
+let a = 1 // first
+let bigger = 22   // second
+let c = 333 // third
+
+let d = 4     // alone
+print(total([a, bigger, c, d]))   //   kept as written

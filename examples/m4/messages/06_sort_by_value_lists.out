@@ -1,0 +1,6 @@
+error: `sort_by_value` needs values that can be ordered, but these are `List[Int]` values
+ --> 06_sort_by_value_lists.fn:2:7
+  |
+2 | print(groups |> sort_by_value(desc))
+  |       ^^^^^^
+help: turn each value into an Int, Float or Str with `map_values` first, for example `groups |> map_values(v -> v.len()) |> sort_by_value(desc)`

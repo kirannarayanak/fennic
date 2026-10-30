@@ -1,0 +1,6 @@
+error: `none` is not a pattern
+ --> 04_none_pattern.fn:3:3
+  |
+3 |   none -> "missing"
+  |   ^^^^
+help: test for it before matching, `if w == none { ... } else { ... }`, or give a default with `w ?? ...`

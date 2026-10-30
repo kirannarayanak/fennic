@@ -1,0 +1,178 @@
+{
+  "about": "formatting replaces the whole document; the client's options are ignored; a formatted document gets no edits",
+  "steps": [
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "processId": null,
+          "rootUri": null,
+          "capabilities": {}
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "capabilities": {
+            "positionEncoding": "utf-16",
+            "textDocumentSync": 1,
+            "documentFormattingProvider": true,
+            "hoverProvider": true,
+            "definitionProvider": true
+          },
+          "serverInfo": {
+            "name": "fennic"
+          }
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn",
+            "languageId": "fennic",
+            "version": 1,
+            "text": "let xs=[1,2 ,3]\nprint(  xs )\n"
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "uri": "file:///work/main.fn",
+          "version": 1,
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "textDocument/formatting",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn"
+          },
+          "options": {
+            "tabSize": 8,
+            "insertSpaces": false
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": [
+          {
+            "range": {
+              "start": {
+                "line": 0,
+                "character": 0
+              },
+              "end": {
+                "line": 2,
+                "character": 0
+              }
+            },
+            "newText": "let xs = [1, 2, 3]\nprint(xs)\n"
+          }
+        ]
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didChange",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn",
+            "version": 2
+          },
+          "contentChanges": [
+            {
+              "text": "let xs = [1, 2, 3]\nprint(xs)\n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "uri": "file:///work/main.fn",
+          "version": 2,
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "textDocument/formatting",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn"
+          },
+          "options": {
+            "tabSize": 2,
+            "insertSpaces": true
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": []
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "shutdown"
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": null
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "exit"
+      }
+    },
+    {
+      "exit": 0
+    }
+  ]
+}

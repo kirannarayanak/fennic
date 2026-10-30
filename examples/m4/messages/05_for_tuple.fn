@@ -1,0 +1,4 @@
+let rows = [("a", 1), ("b", 2)]
+for (name, n) in rows {
+  print("{name} {n}")
+}

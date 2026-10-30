@@ -1,0 +1,5 @@
+fn sign(n: Int) -> Str { if n < 0 {"-"} else {"+"} }
+var log = []
+log.push(sign(-2));log.push(sign(3))
+let shout = fn(s: Str) -> Str {   "{s}!"   }
+print("{log} {shout("hi")}")

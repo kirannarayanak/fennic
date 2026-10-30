@@ -1,0 +1,9 @@
+type Point {
+  x: Int
+  y: Int
+}
+let p = Point { x: 3, y: 4 }
+let q = p with { y: 5 }
+let m = Map{"a": 1}
+let empty = Map{}
+print("{p} {q} {m} {empty.len()}")

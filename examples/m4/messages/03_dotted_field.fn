@@ -1,0 +1,4 @@
+type Connector {
+  name: Str
+  topic.prefix: Str
+}

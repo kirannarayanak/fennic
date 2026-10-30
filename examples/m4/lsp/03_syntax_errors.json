@@ -1,0 +1,175 @@
+{
+  "about": "while a file does not parse, its diagnostics are the syntax errors, and hover, definition and formatting answer nothing",
+  "steps": [
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "processId": null,
+          "rootUri": null,
+          "capabilities": {}
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "capabilities": {
+            "positionEncoding": "utf-16",
+            "textDocumentSync": 1,
+            "documentFormattingProvider": true,
+            "hoverProvider": true,
+            "definitionProvider": true
+          },
+          "serverInfo": {
+            "name": "fennic"
+          }
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn",
+            "languageId": "fennic",
+            "version": 1,
+            "text": "let x = (1 +\nprint(x)\n"
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "uri": "file:///work/main.fn",
+          "version": 1,
+          "diagnostics": [
+            {
+              "range": {
+                "start": {
+                  "line": 1,
+                  "character": 8
+                },
+                "end": {
+                  "line": 1,
+                  "character": 9
+                }
+              },
+              "severity": 1,
+              "source": "fennic",
+              "message": "expected `)` to close the `(` on line 1, found the end of the file\n\nhelp: add `)`"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "textDocument/hover",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn"
+          },
+          "position": {
+            "line": 1,
+            "character": 6
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": null
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "textDocument/definition",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn"
+          },
+          "position": {
+            "line": 1,
+            "character": 6
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": null
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "textDocument/formatting",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn"
+          },
+          "options": {
+            "tabSize": 4,
+            "insertSpaces": true
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": []
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "shutdown"
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "result": null
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "exit"
+      }
+    },
+    {
+      "exit": 0
+    }
+  ]
+}

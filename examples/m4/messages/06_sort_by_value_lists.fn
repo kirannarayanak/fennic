@@ -1,0 +1,2 @@
+let groups = Map{"a": [1, 2], "b": [3]}
+print(groups |> sort_by_value(desc))

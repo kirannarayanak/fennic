@@ -1,0 +1,6 @@
+error: `-` needs an Int or a Float, but this is a Str
+ --> 12_negate_str.fn:2:7
+  |
+2 | print(-s)
+  |       ^^
+help: `-` negates a number; to read a number from a Str, use `int.parse(s)`

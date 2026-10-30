@@ -1,0 +1,6 @@
+let w = [1, 2] |> first()
+let s = match w {
+  none -> "missing"
+  _ -> "present"
+}
+print(s)

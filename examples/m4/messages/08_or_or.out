@@ -1,0 +1,6 @@
+error: `||` is not an operator in Fennic
+ --> 08_or_or.fn:3:9
+  |
+3 | print(a || b)
+  |         ^^
+help: write `or`: `a or b`; to handle a failure, write `else`

@@ -1,0 +1,5 @@
+let words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa", "lambda"]
+let picked = words |> filter(w -> w.len() > 4) |> take(3)
+let joined = join(
+  picked, ", ")
+print(joined)

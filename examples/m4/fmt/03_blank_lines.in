@@ -1,0 +1,15 @@
+
+
+fn twice(n: Int) -> Int {
+
+  let m = n * 2
+
+
+  m
+
+}
+
+
+
+print(twice(4))
+

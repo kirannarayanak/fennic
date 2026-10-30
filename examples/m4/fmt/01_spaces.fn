@@ -1,0 +1,8 @@
+fn area(w: Int, h: Int) -> Int {
+  w * h
+}
+let xs = [1, 2, 3]
+var total = 0
+total += area(2, 3)
+let ok = total >= 6 and not ((xs |> len()) == 0)
+print("{total} {ok}")

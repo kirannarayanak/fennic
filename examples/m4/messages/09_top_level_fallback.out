@@ -1,0 +1,6 @@
+error: "twelve" is not a whole number
+ --> 09_top_level_fallback.fn:1:9
+  |
+1 | let n = int.parse("twelve")!
+  |         ^^^^^^^^^^^^^^^^^^^
+help: `!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `int.parse("twelve") else 0`

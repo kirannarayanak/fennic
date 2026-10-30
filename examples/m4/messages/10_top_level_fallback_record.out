@@ -1,0 +1,6 @@
+error: cannot read "missing.csv": file not found
+ --> 10_top_level_fallback_record.fn:2:12
+  |
+2 | let rows = csv.read[Row]("missing.csv")!
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: `!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `csv.read[Row]("missing.csv") else []`

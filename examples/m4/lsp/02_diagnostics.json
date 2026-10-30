@@ -1,0 +1,134 @@
+{
+  "about": "a type error is published on open, and cleared when an edit fixes it",
+  "steps": [
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "processId": null,
+          "rootUri": null,
+          "capabilities": {}
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "capabilities": {
+            "positionEncoding": "utf-16",
+            "textDocumentSync": 1,
+            "documentFormattingProvider": true,
+            "hoverProvider": true,
+            "definitionProvider": true
+          },
+          "serverInfo": {
+            "name": "fennic"
+          }
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn",
+            "languageId": "fennic",
+            "version": 1,
+            "text": "fn greet(who: Str) -> Str {\n  \"Hello, {who}\"\n}\nlet count = 3\nprint(greet(count))\n"
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "uri": "file:///work/main.fn",
+          "version": 1,
+          "diagnostics": [
+            {
+              "range": {
+                "start": {
+                  "line": 4,
+                  "character": 12
+                },
+                "end": {
+                  "line": 4,
+                  "character": 17
+                }
+              },
+              "severity": 1,
+              "source": "fennic",
+              "message": "`greet` needs a Str for `who`, but this is an Int\n\nhelp: to turn a value into a Str, interpolate it: \"{count}\""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didChange",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn",
+            "version": 2
+          },
+          "contentChanges": [
+            {
+              "text": "fn greet(who: Str) -> Str {\n  \"Hello, {who}\"\n}\nlet count = 3\nprint(greet(\"{count}\"))\n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "uri": "file:///work/main.fn",
+          "version": 2,
+          "diagnostics": []
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "shutdown"
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": null
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "exit"
+      }
+    },
+    {
+      "exit": 0
+    }
+  ]
+}

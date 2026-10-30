@@ -1,0 +1,6 @@
+error: `==` cannot follow a pipeline without parentheses
+ --> 02_pipe_in_if.fn:2:16
+  |
+2 | if xs |> len() == 0 {
+  |                ^^
+help: `|>` binds more loosely than `==`; put the pipeline in parentheses: `(xs |> len()) == 0`

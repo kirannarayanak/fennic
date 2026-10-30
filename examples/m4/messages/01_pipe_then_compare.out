@@ -1,0 +1,6 @@
+error: `==` cannot follow a pipeline without parentheses
+ --> 01_pipe_then_compare.fn:2:25
+  |
+2 | let empty = xs |> len() == 0
+  |                         ^^
+help: `|>` binds more loosely than `==`; put the pipeline in parentheses: `(xs |> len()) == 0`

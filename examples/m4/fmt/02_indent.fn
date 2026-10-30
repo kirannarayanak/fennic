@@ -1,0 +1,11 @@
+fn label(n: Int) -> Str {
+  if n > 9 {
+    "big"
+  } else {
+    "small"
+  }
+}
+let names = [3, 12]
+  |> map(n -> label(n))
+  |> join(", ")
+print(names)

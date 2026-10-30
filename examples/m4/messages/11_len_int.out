@@ -1,0 +1,6 @@
+error: `len` needs a List or a Str, but this is an Int
+ --> 11_len_int.fn:1:11
+  |
+1 | print(len(3))
+  |           ^
+help: `len` counts a List's items or a Str's characters; to count an Int's digits, write `len("{3}")`

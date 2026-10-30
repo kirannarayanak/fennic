@@ -1,0 +1,106 @@
+{
+  "about": "positions count UTF-16 code units by default: the fox before the error is two",
+  "steps": [
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "processId": null,
+          "rootUri": null,
+          "capabilities": {}
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "capabilities": {
+            "positionEncoding": "utf-16",
+            "textDocumentSync": 1,
+            "documentFormattingProvider": true,
+            "hoverProvider": true,
+            "definitionProvider": true
+          },
+          "serverInfo": {
+            "name": "fennic"
+          }
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "initialized",
+        "params": {}
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/didOpen",
+        "params": {
+          "textDocument": {
+            "uri": "file:///work/main.fn",
+            "languageId": "fennic",
+            "version": 1,
+            "text": "let pair = (\"🦊\", -\"a\")\n"
+          }
+        }
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "uri": "file:///work/main.fn",
+          "version": 1,
+          "diagnostics": [
+            {
+              "range": {
+                "start": {
+                  "line": 0,
+                  "character": 18
+                },
+                "end": {
+                  "line": 0,
+                  "character": 22
+                }
+              },
+              "severity": 1,
+              "source": "fennic",
+              "message": "`-` needs an Int or a Float, but this is a Str\n\nhelp: `-` negates a number; to read a number from a Str, use `int.parse(\"a\")`"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "shutdown"
+      }
+    },
+    {
+      "expect": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": null
+      }
+    },
+    {
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "exit"
+      }
+    },
+    {
+      "exit": 0
+    }
+  ]
+}

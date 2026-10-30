@@ -1,0 +1,6 @@
+error: `for` names one value at a time; it cannot take a tuple apart
+ --> 05_for_tuple.fn:2:5
+  |
+2 | for (name, n) in rows {
+  |     ^^^^^^^^^
+help: name the value, then take it apart with `match`: `for row in rows { match row { (name, n) -> ... } }`

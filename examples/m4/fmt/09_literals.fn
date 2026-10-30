@@ -1,0 +1,7 @@
+let big = 1000000
+let f = 2.50
+let s = "tab\there {big+1} \{not}"
+let raw = `{"port": 80}`
+print(s)
+print(raw)
+print(f)

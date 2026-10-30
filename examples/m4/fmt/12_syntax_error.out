@@ -1,0 +1,6 @@
+error: expected `)` to close the `(` on line 1, found the end of the file
+ --> 12_syntax_error.fn:2:9
+  |
+2 | print(x)
+  |         ^
+help: add `)`

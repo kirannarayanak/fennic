@@ -1,0 +1,6 @@
+error: a field name cannot contain `.`
+ --> 03_dotted_field.fn:3:3
+  |
+3 |   topic.prefix: Str
+  |   ^^^^^^^^^^^^
+help: name the field `topic_prefix`; to read JSON keys that contain dots, parse the object into a `Map[Str, Str]`

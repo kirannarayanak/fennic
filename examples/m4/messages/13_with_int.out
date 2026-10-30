@@ -1,0 +1,6 @@
+error: `with` copies a record, but this is an Int
+ --> 13_with_int.fn:2:7
+  |
+2 | print(n with { x: 2 })
+  |       ^
+help: `with` changes fields of a record value, like `user with { age: 32 }`; an Int has no fields

@@ -1,0 +1,11 @@
+let xs = [
+  1, // one
+  2, // two
+]
+let s = match xs.len() {
+  // nothing yet
+  0 -> "empty"
+  // one or more
+  _ -> "some" // the rest
+}
+print(s)
