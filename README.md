@@ -175,16 +175,50 @@ Built-in functions: `print`, `len`, `first`, `last`, `sum`, `map`, `each`,
 `.len()`. Backtick strings, `` `{"a": 1}` ``, have no
 escapes and no interpolation.
 
+## Not in the language
+
+So you can stop searching. Some of these are decisions (the design rules
+are in [`CLAUDE.md`](CLAUDE.md)); others wait for real programs to need
+them.
+
+- **Text:** no regular expressions. Of the string functions, there are
+  only `split`, `join`, `contains`, `starts_with`, `trim`, `pad_start`,
+  `pad_end`, `lower` and `words`: no `ends_with`, `replace`, `upper`,
+  slicing or character access. `+` does not join strings; interpolate
+  them, `"{a}{b}"`.
+- **Numbers:** no rounding or number formatting (`round`, format
+  specifiers). No implicit conversion between Int and Float; use `to_float`
+  and `to_int`. No exponent notation (`1e9`), hex literals or `_` in
+  number literals.
+- **Input and output:** no network (`http.get` was cut), no database, no
+  reading standard input, no running other programs, no setting
+  environment variables, no recursive directory walk, and no current time
+  or date arithmetic. Files are read and written with `fs` and `csv`.
+- **Control flow:** no `return`, `while`, `break` or `continue`; the last
+  expression of a block is its value, and loops are `for ... in`. No
+  exceptions or `try`; failures are values, handled with `!` and `else`.
+- **Values and types:** no null (`T?` and `none` instead). No Set type. No
+  iterating a map: no `.keys()`, and no way to walk its entries by key.
+  Map keys are Str, Int or Bool; no tuple keys. No record field defaults.
+  No classes or inheritance; no operator overloading. No destructuring in
+  `let` or `for`; use `match`.
+- **Functions:** a function you declare cannot take a function as a
+  parameter; only the built-ins (`map`, `filter`, ...) take lambdas.
+- **Programs:** one file is one program; no modules or imports, no package
+  manager, no macros, no formatter and no language server yet. Comments are
+  `//` only.
+
 ## Development
 
 ```bash
 go test ./...
 ```
 
-This runs the lexer, parser, type checker and interpreter tests, runs the
-twenty programs in `examples/` against their expected output, and checks
-that the twenty in `examples/rejected/` are refused with exactly the error
-beside each.
+This runs the lexer, parser, type checker and interpreter tests. It runs
+the 34 programs in `examples/` against their expected output, checks that
+the 45 in `examples/rejected/` are refused with exactly the error beside
+each, runs the 20 programs of the spec as written in `examples/m0/`, and
+runs the three real programs in `programs/` on their sample inputs.
 
 | Directory | Contents |
 | --- | --- |
@@ -194,7 +228,8 @@ beside each.
 | `interp` | the tree-walking interpreter, built-ins and test runner |
 | `diag` | error messages and how they are printed |
 | `cli`, `cmd/fennic` | the `fennic` command |
-| `examples` | the acceptance suite, with programs that must be refused in `examples/rejected` |
+| `examples` | the acceptance suite: programs that run, programs that must be refused (`examples/rejected`), and the spec's twenty programs (`examples/m0`) |
+| `programs` | three real programs, and the record of what they needed (`programs/RECORD.md`) |
 
 [`CLAUDE.md`](CLAUDE.md) records the design rules and the decisions made so
 far.

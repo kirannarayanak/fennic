@@ -5,9 +5,10 @@ runs. If it reports a problem, `fennic run` and `fennic test` print every
 problem and run nothing. It adds no syntax: everything below is checked
 from what programs already write.
 
-`examples/` (all twenty must still pass) and `examples/rejected/` (twenty
-programs the checker must refuse, each with its expected error) are the
-acceptance suite.
+`examples/` (34 programs that must run and match their expected output),
+`examples/rejected/` (45 programs the checker must refuse, each with its
+expected error) and `examples/m0/` (the 20 programs of `docs/m0-spec.md`,
+run as written) are the acceptance suite.
 
 ## Types
 
@@ -91,9 +92,12 @@ A failable function's body may end in a `T` or a `T!`.
 type. `with` names existing fields with their declared types. Reading a
 field that does not exist suggests the nearest name.
 
-**Sum types and match.** The value matched must be a sum type. Each arm
-names one of its variants and binds every field. Every variant must have an
-arm, and no variant may have two. All arms give the same type.
+**Sum types and match.** `match` takes apart any value; the patterns it
+allows are under "Patterns" below. On a sum type, an arm that names a
+variant gives a pattern for each of its fields. Every variant must be
+handled by an arm whose inner patterns match anything, so `Done(0)` alone
+does not cover `Done`. An arm that can never run, because an earlier arm
+already covers it, is an error. All arms give the same type.
 
 **Methods.** `fn T.m(self, ...)` gives `self` the type `T`. `x.m()` finds
 the method by `x`'s type. `T.f()` calls a function declared without `self`.
@@ -118,14 +122,15 @@ methods, and `for x in ch` receives until it is closed and empty. Sending
 and receiving give up when the task is cancelled.
 
 **Strings.** Interpolation accepts any value except a failable or a
-function. `print` and `log.warn` take a Str. `assert` takes a Bool.
+function. `print` shows any value interpolation accepts; `log.warn` takes a
+Str. `assert` takes a Bool.
 
 ## Added in M3
 
 **Control flow.** `if c { a } else { b }` needs a Bool condition, and both
 branches give the same type; without `else` it gives nothing. `and`, `or`
-and `not` need Bools. `for x in xs` goes over a List; `a..b` is the List of
-Ints from `a` to `b`, both included. `x += e` is `x = x + e`.
+and `not` need Bools. `for x in xs` goes over a List or a channel; `a..b` is
+the List of Ints from `a` to `b`, both included. `x += e` is `x = x + e`.
 
 **Patterns.** `match` works on any value. A pattern is a variant, which may
 have no fields (`Queued`) or nested patterns (`Done(0)`); a literal; a
@@ -158,7 +163,7 @@ top-level statements. It returns nothing, and the program exits with 0, or
 ## Built-ins
 
 ```
-print(Str)                        log.warn(Str)
+print(T)                          log.warn(Str)
 len(List[T]) -> Int               len(Str) -> Int
 first(List[T]) -> T?              last(List[T]) -> T?
 sum(List[Int]) -> Int             sum(List[Float]) -> Float

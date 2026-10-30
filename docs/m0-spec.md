@@ -401,11 +401,18 @@ Apply these when diffing. They are decisions, not open questions.
 
 ## Three collisions the diff must resolve
 
-These are real conflicts between this document and what now exists. None has a decided answer yet.
+These were conflicts between this document and the language as built.
+All three were resolved at M3 step 2; the decisions are recorded below,
+and the program texts above already follow them.
 
-1. `or` is overloaded. Program 9 uses it as a boolean operator (`n < 1 or n > 65535`) and programs 10, 11 and 15 use it as the failure-fallback keyword. Both are in this spec. One of them has to move.
-2. `.push` meets immutability. Program 12 calls `.push` on `var` bindings. The spec never says whether `.push` mutates in place or returns a new list, and `let` lists are immutable.
-3. `http.get` is referenced but unimplemented, and programs 18, 19 and 20 depend on network or filesystem operations that an offline acceptance run cannot perform as written.
+1. **`or` was overloaded.** Program 9 used it as a boolean operator and
+   programs 10, 11 and 15 as the failure fallback. Resolved: `or` is
+   boolean, with `and` and `not`; the failure fallback is `else`
+   (decisions 1 and 4).
+2. **`.push` met immutability.** Resolved: `.push` changes a `var` list in
+   place and is an error on a `let` list (decision 2).
+3. **`http.get` was referenced but not implemented.** Resolved: it is cut,
+   and programs 18 and 19 read local files instead (decision 3).
 
 ## Decisions recorded at M3 step 2
 
