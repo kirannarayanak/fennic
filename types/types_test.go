@@ -1,11 +1,13 @@
 package types
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/kirannarayanak/fennic/ast"
 	"github.com/kirannarayanak/fennic/parser"
 )
 
@@ -450,4 +452,116 @@ func TestStringFunctions(t *testing.T) {
 		{"pad fill of one character", "let p = pad_end(\"a\", 4, \"ab\")", "`pad_end` fills with one character, but this is 2 | fill with exactly one character, like `\" \"` or `\"0\"`"},
 		{"a user function of the same name wins", "fn contains(xs: List[Str], x: Str) -> Bool { first(xs, y -> y == x) != none }\nlet b = contains([\"a\"], \"a\")", ""},
 	})
+}
+
+// What each identifier names, for hover and go to definition.
+func TestNames(t *testing.T) {
+	prog := `type User {
+  name: Str
+}
+type Shape =
+  | Circle(radius: Float)
+  | Dot
+fn greet(who: Str) -> Str {
+  "Hello, {who}"
+}
+fn User.shout(self) -> Str {
+  self.name
+}
+fn area(s: Shape) -> Float {
+  match s {
+    Circle(r) -> r * r
+    Dot       -> 0.0
+  }
+}
+let ada = User { name: "Ada" }
+var count = 0
+for n in [1, 2] {
+  count += n
+}
+let up = ada.shout()
+let xs = [1] |> map(x -> x + 1)
+let total = len(xs)
+let f = fs.read("a") else e -> "{e}"
+print(greet(ada.name))
+print(area(Dot))
+`
+	cases := []struct {
+		name     string
+		at       string // the identifier, and which occurrence of it: "count#2"
+		hover    string
+		declared string // "line:col" of its declaration, or "" for none
+	}{
+		{"a var where it is declared", "count#1", "count: Int", "20:5"},
+		{"a var assigned", "count#2", "count: Int", "20:5"},
+		{"a let", "ada#2", "ada: User", "19:5"},
+		{"a for variable", "n#2", "n: Int", "21:5"},
+		{"a parameter used in a string", "who#2", "who: Str", "7:10"},
+		{"self", "self#2", "self: User", "10:15"},
+		{"a function", "greet#2", "fn greet(who: Str) -> Str", "7:4"},
+		{"a method", "shout#2", "fn User.shout(self) -> Str", "10:9"},
+		{"a field read", "name#4", "name: Str", "2:3"},
+		{"a field in a literal", "name#2", "name: Str", "2:3"},
+		{"a field declared", "name#1", "name: Str", "2:3"},
+		{"a type in a literal", "User#3", "type User", "1:6"},
+		{"a type in a signature", "Shape#2", "type Shape", "4:6"},
+		{"a variant in a pattern", "Circle#2", "Circle(radius: Float)", "5:5"},
+		{"a variant without fields", "Dot#3", "Dot", "6:5"},
+		{"a pattern binding", "r#3", "r: Float", "15:12"},
+		{"a lambda parameter", "x#2", "x: Int", "25:21"},
+		{"the error in else", "e#2", "e: Error", "27:27"},
+		{"a built-in", "len#1", "fn len(List[Int]) -> Int", ""},
+		{"a built-in in a pipeline", "map#1", "fn map(List[Int], (Int) -> Int) -> List[Int]", ""},
+		{"a module function", "read#1", "fn fs.read(Str) -> Str!", ""},
+	}
+	file, perr := parser.Parse(prog)
+	if len(perr) > 0 {
+		t.Fatal(perr[0].Msg)
+	}
+	diags, info := Check(file, prog)
+	if len(diags) > 0 {
+		t.Fatalf("%s at %v", diags[0].Msg, diags[0].Pos)
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			word, nth, _ := strings.Cut(c.at, "#")
+			var found *ast.Ident
+			count := 0
+			// Find the nth occurrence of the word in the source, then the
+			// identifier there.
+			off := -1
+			for i := 0; i < len(prog); i++ {
+				if strings.HasPrefix(prog[i:], word) && (i == 0 || !isWordByte(prog[i-1])) && (i+len(word) == len(prog) || !isWordByte(prog[i+len(word)])) {
+					count++
+					if fmt.Sprint(count) == nth {
+						off = i
+						break
+					}
+				}
+			}
+			for id := range info.Names {
+				if id.Pos().Offset == off {
+					found = id
+				}
+			}
+			if found == nil {
+				t.Fatalf("no name recorded at %s", c.at)
+			}
+			n := info.Names[found]
+			if got := n.Hover(found); got != c.hover {
+				t.Errorf("hover %q, want %q", got, c.hover)
+			}
+			got := ""
+			if n.Decl != nil {
+				got = n.Decl.Pos().String()
+			}
+			if got != c.declared {
+				t.Errorf("declared at %q, want %q", got, c.declared)
+			}
+		})
+	}
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
 }

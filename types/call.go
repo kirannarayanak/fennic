@@ -18,18 +18,23 @@ func (c *checker) call(node ast.Node, callee ast.Expr, args []ast.Expr, pipeX as
 	case *ast.Ident:
 		name := fn.Name
 		if b, ok := sc.lookup(name); ok {
+			c.name(fn, &Name{Decl: b.decl, Type: b.t})
 			return c.callValue(node, "`"+name+"`", b.t, args, sc, x)
 		}
 		if s, ok := c.funcs[name]; ok {
+			c.sigName(fn, s)
 			return c.callSig(node, s, args, sc, x)
 		}
 		if builtins[name] {
-			return c.builtin(name, node, args, sc, x, want)
+			t := c.builtin(name, node, args, sc, x, want)
+			c.builtinCalls = append(c.builtinCalls, builtinCall{fn, name, args, t})
+			return t
 		}
 		if name == "Chan" {
 			return c.newChan(node, args, sc, x, want)
 		}
 		if v, ok := c.variant[name]; ok {
+			c.name(fn, c.info.Names[c.decl.variants[name]])
 			return c.construct(node, v, args, sc, x)
 		}
 		if n, ok := c.named[name]; ok && !n.IsSum() {
@@ -44,9 +49,12 @@ func (c *checker) call(node ast.Node, callee ast.Expr, args []ast.Expr, pipeX as
 		if id, ok := fn.X.(*ast.Ident); ok {
 			if _, isValue := sc.lookup(id.Name); !isValue {
 				if modules[id.Name] {
-					return c.builtin(id.Name+"."+fn.Name.Name, node, args, sc, x, want)
+					t := c.builtin(id.Name+"."+fn.Name.Name, node, args, sc, x, want)
+					c.builtinCalls = append(c.builtinCalls, builtinCall{fn.Name, id.Name + "." + fn.Name.Name, args, t})
+					return t
 				}
 				if _, isType := c.named[id.Name]; isType {
+					c.typeName(id)
 					return c.typeFunc(node, fn, id.Name, args, sc, x)
 				}
 			}
@@ -81,6 +89,7 @@ func (c *checker) method(node ast.Node, fn *ast.FieldExpr, recv Type, args []ast
 	}
 	if n, ok := prune(recv).(*Named); ok {
 		if s, ok := c.methods[n.Name][fn.Name.Name]; ok && s.self {
+			c.sigName(fn.Name, s)
 			return c.callSig(node, s, args, sc, x)
 		}
 	}
@@ -91,6 +100,9 @@ func (c *checker) method(node ast.Node, fn *ast.FieldExpr, recv Type, args []ast
 // typeFunc checks `Type.name(args)`, a function declared without self.
 func (c *checker) typeFunc(node ast.Node, fn *ast.FieldExpr, typeName string, args []ast.Expr, sc *scope, x *ctx) Type {
 	s, ok := c.methods[typeName][fn.Name.Name]
+	if ok {
+		c.sigName(fn.Name, s)
+	}
 	switch {
 	case !ok:
 		c.checkArgsLoosely(args, sc, x)

@@ -13,6 +13,12 @@ import (
 // `json.parse` take their types from context. Reporting a value that does
 // not fit want is the caller's job.
 func (c *checker) expr(e ast.Expr, sc *scope, x *ctx, want Type) Type {
+	t := c.exprOf(e, sc, x, want)
+	c.types[e] = t
+	return t
+}
+
+func (c *checker) exprOf(e ast.Expr, sc *scope, x *ctx, want Type) Type {
 	switch e := e.(type) {
 	case *ast.IntLit:
 		return Int
@@ -152,15 +158,18 @@ func (c *checker) ident(e *ast.Ident, sc *scope) Type {
 		return bad
 	}
 	if b, ok := sc.lookup(e.Name); ok {
+		c.name(e, &Name{Decl: b.decl, Type: b.t})
 		return b.t
 	}
 	if v, ok := c.variant[e.Name]; ok && len(v.Fields) == 0 {
+		c.name(e, c.info.Names[c.decl.variants[e.Name]])
 		return v.Sum
 	}
 	if e.Name == "asc" || e.Name == "desc" {
 		return Order
 	}
 	if s, ok := c.funcs[e.Name]; ok {
+		c.sigName(e, s)
 		if len(s.tparams) > 0 {
 			c.errorf(e, fmt.Sprintf("call it: `%s(...)`", e.Name), "`%s` is generic, so it can only be called, not passed around", e.Name)
 			return bad
@@ -242,9 +251,13 @@ func (c *checker) record(e *ast.RecordLit, sc *scope, x *ctx) Type {
 		}
 		return bad
 	}
+	c.typeName(e.Type)
 	given := map[string]bool{}
 	for _, fi := range e.Fields {
 		f, exists := n.field(fi.Name.Name)
+		if exists {
+			c.fieldName(n.Name, fi.Name, f.Type)
+		}
 		if !exists {
 			c.expr(fi.Value, sc, x, nil)
 			c.errorf(fi.Name, c.didYouMean(fi.Name.Name, n, false), "`%s` has no field `%s`", n.Name, fi.Name.Name)
@@ -289,6 +302,9 @@ func (c *checker) with(e *ast.WithExpr, sc *scope, x *ctx) Type {
 	}
 	for _, fi := range e.Fields {
 		f, exists := n.field(fi.Name.Name)
+		if exists {
+			c.fieldName(n.Name, fi.Name, f.Type)
+		}
 		if !exists {
 			c.expr(fi.Value, sc, x, nil)
 			c.errorf(fi.Name, c.didYouMean(fi.Name.Name, n, false), "`%s` has no field `%s`", n.Name, fi.Name.Name)
@@ -351,6 +367,15 @@ func (c *checker) member(e ast.Node, recv Type, xe ast.Expr, name *ast.Ident, op
 		return bad
 	}
 	if t := c.lookupMember(recv, name.Name); t != nil {
+		if n, ok := r.(*Named); ok {
+			if s, isMethod := c.methods[n.Name][name.Name]; isMethod && s.self {
+				c.sigName(name, s)
+			} else {
+				c.fieldName(n.Name, name, t)
+			}
+		} else {
+			c.name(name, &Name{Type: t})
+		}
 		return t
 	}
 	switch r := r.(type) {
@@ -682,7 +707,8 @@ func (c *checker) elseExpr(e *ast.ElseExpr, sc *scope, x *ctx, want Type) Type {
 	inner := sc
 	if e.ErrName != nil {
 		inner = newScope(sc)
-		inner.vars[e.ErrName.Name] = &binding{t: Error}
+		inner.vars[e.ErrName.Name] = &binding{t: Error, decl: e.ErrName}
+		c.name(e.ErrName, &Name{Decl: e.ErrName, Type: Error})
 	}
 	f, ok := prune(t).(*Fail)
 	if !ok {
@@ -717,7 +743,8 @@ func (c *checker) lambda(e *ast.LambdaExpr, sc *scope, x *ctx, want Type) Type {
 		} else {
 			params[i] = c.fresh()
 		}
-		inner.vars[p.Name] = &binding{t: params[i]}
+		inner.vars[p.Name] = &binding{t: params[i], decl: p}
+		c.name(p, &Name{Decl: p, Type: params[i]})
 	}
 	lx := &ctx{kind: ctxLambda, parent: x}
 	var wantResult Type
@@ -844,7 +871,8 @@ func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
 	switch p := p.(type) {
 	case *ast.WildcardPattern:
 	case *ast.BindPattern:
-		sc.vars[p.Name.Name] = &binding{t: t}
+		sc.vars[p.Name.Name] = &binding{t: t, decl: p.Name}
+		c.name(p.Name, &Name{Decl: p.Name, Type: t})
 	case *ast.LiteralPattern:
 		lt := c.expr(p.Value, sc, nil, nil)
 		if !unify(t, lt) && !isBad(t) {
@@ -891,6 +919,9 @@ func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
 		}
 	case *ast.VariantPattern:
 		name := p.Name.Name
+		if d, ok := c.decl.variants[name]; ok {
+			c.name(p.Name, c.info.Names[d])
+		}
 		var v *Variant
 		n, isSum := prune(t).(*Named)
 		switch {
@@ -1082,7 +1113,8 @@ func (c *checker) funcLit(e *ast.FuncLit, sc *scope, x *ctx) Type {
 	params := make([]Type, len(e.Params))
 	for i, p := range e.Params {
 		params[i] = c.typeOf(p.Type, nil)
-		inner.vars[p.Name.Name] = &binding{t: params[i]}
+		inner.vars[p.Name.Name] = &binding{t: params[i], decl: p.Name}
+		c.name(p.Name, &Name{Decl: p.Name, Type: params[i]})
 	}
 	lx := &ctx{kind: ctxLambda, parent: x}
 	var result Type

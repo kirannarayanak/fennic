@@ -20,6 +20,9 @@ type Info struct {
 	// suggest after `else` if the failure stops the program: a plain value of
 	// the type, or a handler.
 	Fallbacks map[*ast.PropagateExpr]string
+	// Names is what each identifier the checker resolved names, for the
+	// language server.
+	Names map[*ast.Ident]*Name
 }
 
 // Check type-checks a parsed program. It returns every problem found, in
@@ -32,10 +35,13 @@ func Check(file *ast.File, src string) ([]diag.Diagnostic, *Info) {
 		variant: map[string]*Variant{},
 		funcs:   map[string]*sig{},
 		methods: map[string]map[string]*sig{},
-		info:    &Info{Targets: map[ast.Node]Type{}, Fallbacks: map[*ast.PropagateExpr]string{}},
+		info:    &Info{Targets: map[ast.Node]Type{}, Fallbacks: map[*ast.PropagateExpr]string{}, Names: map[*ast.Ident]*Name{}},
+		types:   map[ast.Expr]Type{},
 	}
+	c.declareNames(file)
 	c.declare(file)
 	c.body(file)
+	c.finishNames()
 	sort.SliceStable(c.diags, func(i, j int) bool { return c.diags[i].Pos.Offset < c.diags[j].Pos.Offset })
 	for n, t := range c.info.Targets {
 		c.info.Targets[n] = Resolve(t)
@@ -62,8 +68,12 @@ type checker struct {
 	methods map[string]map[string]*sig // type name -> method name -> signature
 	info    *Info
 	diags   []diag.Diagnostic
-	nextVar int
-	pending []constraintCheck
+
+	decl         decls
+	types        map[ast.Expr]Type // the type of each expression checked
+	builtinCalls []builtinCall
+	nextVar      int
+	pending      []constraintCheck
 }
 
 func (c *checker) fresh() *Var { c.nextVar++; return &Var{id: c.nextVar} }
@@ -218,6 +228,7 @@ func (c *checker) typeOf(t ast.TypeExpr, scope map[string]*Param) Type {
 		return &Fail{elem}
 	case *ast.NamedType:
 		name := t.Name.Name
+		c.typeName(t.Name)
 		if p, ok := scope[name]; ok {
 			return p
 		}
@@ -464,6 +475,7 @@ func (c *checker) mismatch(n ast.Node, want, got Type, a assignment, lead, plain
 type binding struct {
 	t       Type
 	mutable bool
+	decl    *ast.Ident // where it is declared
 }
 
 type scope struct {
@@ -548,10 +560,19 @@ func (c *checker) fnBody(d *ast.FnDecl, globals *scope) {
 	}
 	sc := newScope(globals)
 	if s.self {
-		sc.vars["self"] = &binding{t: c.named[d.Recv.Name]}
+		self := d.Params[0].Name
+		sc.vars["self"] = &binding{t: c.named[d.Recv.Name], decl: self}
+		c.name(self, &Name{Decl: self, Type: c.named[d.Recv.Name]})
 	}
 	for _, p := range s.params {
-		sc.vars[p.Name] = &binding{t: p.Type}
+		var id *ast.Ident
+		for _, ap := range d.Params {
+			if ap.Name.Name == p.Name {
+				id = ap.Name
+			}
+		}
+		sc.vars[p.Name] = &binding{t: p.Type, decl: id}
+		c.name(id, &Name{Decl: id, Type: p.Type})
 	}
 	x := &ctx{kind: ctxFn, fn: s}
 	if s.result == Unit {
@@ -600,12 +621,14 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 	switch s := s.(type) {
 	case *ast.LetStmt:
 		t := c.expr(s.Value, sc, x, nil)
-		sc.vars[s.Name.Name] = &binding{t: t, mutable: s.Mutable}
+		sc.vars[s.Name.Name] = &binding{t: t, mutable: s.Mutable, decl: s.Name}
+		c.name(s.Name, &Name{Decl: s.Name, Type: t})
 	case *ast.AssignStmt:
 		b, ok := sc.lookup(s.Name.Name)
 		var want Type
 		if ok {
 			want = b.t
+			c.name(s.Name, &Name{Decl: b.decl, Type: b.t})
 		}
 		got := c.expr(s.Value, sc, x, want)
 		if !ok || !b.mutable {
@@ -640,6 +663,9 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 		c.expr(s.X, sc, x, nil)
 	case *ast.IndexAssignStmt:
 		b, ok := sc.lookup(s.Name.Name)
+		if ok {
+			c.name(s.Name, &Name{Decl: b.decl, Type: b.t})
+		}
 		if !ok || !b.mutable {
 			c.expr(s.Index, sc, x, nil)
 			c.expr(s.Value, sc, x, nil)
@@ -679,7 +705,8 @@ func (c *checker) stmt(s ast.Stmt, sc *scope, x *ctx) {
 		}
 		inner := newScope(sc)
 		if s.Var.Name != "_" {
-			inner.vars[s.Var.Name] = &binding{t: elem}
+			inner.vars[s.Var.Name] = &binding{t: elem, decl: s.Var}
+			c.name(s.Var, &Name{Decl: s.Var, Type: elem})
 		}
 		c.block(s.Body, inner, x, nil)
 	}
