@@ -55,12 +55,18 @@ fennic run tool.fn a b        # run it with command-line arguments
 fennic test hello.fn          # run the program, then its test blocks
 fennic fmt hello.fn           # rewrite files in the one canonical form
 fennic fmt --check *.fn       # list the files that are not formatted
+fennic lsp                    # the language server, run by your editor
 ```
 
 `fennic run` exits with status 0 on success and 1 if the program has an
 error or stops on an unhandled failure. A program sets its own status by
 declaring `fn main() -> Int` and returning it. `fennic test` exits with 1 if any
 test fails.
+
+`fennic lsp` is the language server, for an editor: point the editor's
+language server setting for `.fn` files at the command `fennic lsp`. It
+shows errors as you type, with their help, and gives formatting, the type
+of the name under the cursor, and go to definition.
 
 `fennic fmt` has no options. It keeps your line breaks and sets the
 indentation, the spacing, blank lines, trailing commas and the alignment of
@@ -213,7 +219,7 @@ them.
 - **Functions:** a function you declare cannot take a function as a
   parameter; only the built-ins (`map`, `filter`, ...) take lambdas.
 - **Programs:** one file is one program; no modules or imports, no package
-  manager, no macros, and no language server yet. Comments are
+  manager, no macros. Comments are
   `//` only.
 
 ## Development
@@ -226,7 +232,9 @@ This runs the lexer, parser, type checker and interpreter tests. It runs
 the 34 programs in `examples/` against their expected output, checks that
 the 45 in `examples/rejected/` are refused with exactly the error beside
 each, runs the 20 programs of the spec as written in `examples/m0/`, and
-runs the three real programs in `programs/` on their sample inputs.
+runs the three real programs in `programs/` on their sample inputs. It
+also checks the M4 tooling against `examples/m4/`: the error messages, the
+formatter's pairs, and scripted language server sessions.
 
 | Directory | Contents |
 | --- | --- |
@@ -235,8 +243,10 @@ runs the three real programs in `programs/` on their sample inputs.
 | `types` | the type checker; the rules are in [`docs/types.md`](docs/types.md) |
 | `interp` | the tree-walking interpreter, built-ins and test runner |
 | `diag` | error messages and how they are printed |
+| `format` | the formatter, `fennic fmt` |
+| `lsp` | the language server, `fennic lsp` |
 | `cli`, `cmd/fennic` | the `fennic` command |
-| `examples` | the acceptance suite: programs that run, programs that must be refused (`examples/rejected`), and the spec's twenty programs (`examples/m0`) |
+| `examples` | the acceptance suite: programs that run, programs that must be refused (`examples/rejected`), and the spec's twenty programs (`examples/m0`), and the M4 tooling's cases (`examples/m4`) |
 | `programs` | three real programs, and the record of what they needed (`programs/RECORD.md`) |
 
 [`CLAUDE.md`](CLAUDE.md) records the design rules and the decisions made so
