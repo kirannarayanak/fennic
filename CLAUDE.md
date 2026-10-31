@@ -151,9 +151,17 @@ Out of scope: formatter, language server, package manager, bytecode VM, and any 
 
 When the implementation reports a construct missing from its source, first ask whether the source is complete.
 
-## M4, for context
+## M4: tooling
 
-Tooling: error messages that name the fix, a formatter with no options, a language server. It comes after M3 step 4, because the error messages worth fixing are the ones that get in the way while writing real programs.
+Done. `docs/m4.md` holds the rules; `examples/m4/` holds the acceptance cases, all passing.
+
+1. **Error messages.** Every diagnostic has a help line that names the fix, and the tests fail on any that does not. The messages the real programs ran into are rewritten. Runtime checks the type checker already makes report themselves as internal errors.
+2. **Formatter.** `fennic fmt [--check]`, zero options. It works on tokens, keeps the author's line breaks, and sets indentation, spacing, blank lines, trailing commas, and the alignment of match arms and trailing comments. Every `.fn` file in the repository, and every doc code block that parses, is a fixed point.
+3. **Language server.** `fennic lsp`: diagnostics, formatting, hover and go to definition. Positions are UTF-16 unless the client offers UTF-8 or UTF-32. While a file does not parse, only its syntax errors are answered.
+
+Decided at review: code inside `{...}` in a string is left as written; the spec's programs were reformatted rather than exempted; the editor's tab options are ignored.
+
+Not in M4: completion, rename, find references, semantic highlighting, code actions.
 
 ## Decisions made while writing the acceptance suite
 
