@@ -511,3 +511,72 @@ func TestTopLevelFallbacks(t *testing.T) {
 		})
 	}
 }
+
+// `fennic fmt` rewrites files, `--check` only names them, and a file that
+// does not parse is reported and left alone (docs/m4.md, part 2).
+func TestFormatCommand(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	write := func(name, text string) {
+		if err := os.WriteFile(name, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	read := func(name string) string {
+		b, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	messy, tidy := "let xs=[1,2]\nprint( xs )\n", "let xs = [1, 2]\nprint(xs)\n"
+	broken, err := os.ReadFile(filepath.Join(wdAtStart, "../examples/m4/fmt/12_syntax_error.in"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantBroken, err := os.ReadFile(filepath.Join(wdAtStart, "../examples/m4/fmt/12_syntax_error.out"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write("messy.fn", messy)
+	write("tidy.fn", tidy)
+	write("12_syntax_error.fn", string(broken))
+
+	cases := []struct {
+		name       string
+		args       []string
+		code       int
+		out        string
+		messy      string // what messy.fn holds afterwards
+		brokenSame bool
+	}{
+		{"check lists the unformatted", []string{"fmt", "--check", "messy.fn", "tidy.fn"}, 1, "messy.fn\n", messy, true},
+		{"check of formatted files", []string{"fmt", "--check", "tidy.fn"}, 0, "", messy, true},
+		{"a file that does not parse", []string{"fmt", "12_syntax_error.fn"}, 1, string(wantBroken), messy, true},
+		{"format rewrites", []string{"fmt", "messy.fn", "tidy.fn"}, 0, "", tidy, true},
+		{"no files", []string{"fmt"}, 2, usage, tidy, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var out bytes.Buffer
+			if code := Main(c.args, &out, &out); code != c.code {
+				t.Errorf("exit status %d, want %d", code, c.code)
+			}
+			if out.String() != c.out {
+				t.Errorf("output\n%s\nwant\n%s", out.String(), c.out)
+			}
+			if got := read("messy.fn"); got != c.messy {
+				t.Errorf("messy.fn holds\n%s", got)
+			}
+			if read("12_syntax_error.fn") != string(broken) {
+				t.Errorf("a file that does not parse was changed")
+			}
+			if read("tidy.fn") != tidy {
+				t.Errorf("a formatted file was changed")
+			}
+		})
+	}
+}
+
+// wdAtStart is the package directory, for tests that change directory.
+var wdAtStart, _ = os.Getwd()

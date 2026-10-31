@@ -15,7 +15,7 @@ print `12_syntax_error.out`, and exit with 1.
 | 03 | no blank lines at the start or end of a block or file; at most one between statements |
 | 04 | trailing commas added on multi-line lists, maps, records and arguments, removed on one line |
 | 05 | `->` aligned across consecutive one-line arms; an arm with a block body is not aligned against |
-| 06 | own-line comments indented like the next line; trailing comments on consecutive lines aligned; a lone one gets one space; comment text unchanged |
+| 06 | own-line comments indented like the next line; trailing comments on consecutive lines aligned one space after the longest code; a lone one gets one space; comment text unchanged |
 | 07 | `Point { x: 3 }` and `with { y: 5 }` spaced; `Map{"a": 1}` tight |
 | 08 | one-line blocks stay on one line, spaced `{ a }`; `;` followed by one space |
 | 09 | literals exactly as written: `2.50`, escapes, backtick strings, and the code inside `{...}` in a string |

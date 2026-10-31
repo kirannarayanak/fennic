@@ -53,12 +53,20 @@ Fennic programs are files ending in `.fn`.
 fennic run hello.fn           # run a program
 fennic run tool.fn a b        # run it with command-line arguments
 fennic test hello.fn          # run the program, then its test blocks
+fennic fmt hello.fn           # rewrite files in the one canonical form
+fennic fmt --check *.fn       # list the files that are not formatted
 ```
 
 `fennic run` exits with status 0 on success and 1 if the program has an
 error or stops on an unhandled failure. A program sets its own status by
 declaring `fn main() -> Int` and returning it. `fennic test` exits with 1 if any
 test fails.
+
+`fennic fmt` has no options. It keeps your line breaks and sets the
+indentation, the spacing, blank lines, trailing commas and the alignment of
+match arms and comments; `docs/m4.md` has the rules. It leaves a file that
+does not parse alone and prints its errors. With `--check` it changes
+nothing and exits with 1 if any file needs formatting.
 
 ### A first program
 
@@ -205,7 +213,7 @@ them.
 - **Functions:** a function you declare cannot take a function as a
   parameter; only the built-ins (`map`, `filter`, ...) take lambdas.
 - **Programs:** one file is one program; no modules or imports, no package
-  manager, no macros, no formatter and no language server yet. Comments are
+  manager, no macros, and no language server yet. Comments are
   `//` only.
 
 ## Development

@@ -1,5 +1,5 @@
-// Package cli is the `fennic` command: `fennic run <file>` and
-// `fennic test <file>`.
+// Package cli is the `fennic` command: `fennic run <file>`,
+// `fennic test <file>` and `fennic fmt <file>...`.
 package cli
 
 import (
@@ -19,10 +19,15 @@ import (
 const usage = `usage:
   fennic run <file.fn> [args...]   run a program; args go to fn main(args: List[Str])
   fennic test <file.fn>            run the program's test blocks
+  fennic fmt [--check] <file.fn>...
+                                   format files in place; --check only lists those not formatted
 `
 
 // Main runs the command and returns the process exit status.
 func Main(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "fmt" {
+		return formatFiles(args[1:], stdout, stderr)
+	}
 	if len(args) < 2 || (args[0] != "run" && args[0] != "test") || (args[0] == "test" && len(args) != 2) {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -34,7 +39,7 @@ func Main(args []string, stdout, stderr io.Writer) int {
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Fprintf(stderr, "error: cannot read %s: %v\n", path, err)
+		fmt.Fprintf(stderr, "error: cannot read %s: %v\nhelp: check the path, which is relative to the directory you run fennic in\n", path, err)
 		return 2
 	}
 	src := string(data)
