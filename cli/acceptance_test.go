@@ -77,9 +77,11 @@ func runExpecting(t *testing.T, f string) {
 	if code != wantCode {
 		t.Errorf("exit status %d, want %d", code, wantCode)
 	}
-	if got := out.String(); got != string(want) {
+	got := out.String()
+	if got != string(want) {
 		t.Errorf("output differs\n--- got\n%s--- want\n%s", got, want)
 	}
+	checkEveryErrorHasHelp(t, got)
 }
 
 func TestUsage(t *testing.T) {
@@ -141,18 +143,30 @@ func TestManyErrors(t *testing.T) {
 // program in examples/rejected/ is refused with exactly the error beside it,
 // and nothing runs.
 func TestRejected(t *testing.T) {
+	runRefused(t, "../examples/rejected", 20)
+}
+
+// The messages M4 rewrote, each with its exact text (docs/m4.md, part 1).
+func TestMessages(t *testing.T) {
+	runRefused(t, "../examples/m4/messages", 13)
+}
+
+// runRefused runs every program in dir, each of which must stop with exit
+// status 1 and print exactly its .out file.
+func runRefused(t *testing.T, dir string, atLeast int) {
+	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chdir("../examples/rejected"); err != nil {
+	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
 	defer os.Chdir(wd)
 
 	files, _ := filepath.Glob("*.fn")
-	if len(files) < 20 {
-		t.Fatalf("found %d rejected programs, want at least the original 20", len(files))
+	if len(files) < atLeast {
+		t.Fatalf("found %d programs in %s, want at least %d", len(files), dir, atLeast)
 	}
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
@@ -164,10 +178,37 @@ func TestRejected(t *testing.T) {
 			if code := Main([]string{"run", f}, &out, &out); code != 1 {
 				t.Errorf("exit status %d, want 1", code)
 			}
-			if got := out.String(); got != string(want) {
+			got := out.String()
+			if got != string(want) {
 				t.Errorf("output differs\n--- got\n%s--- want\n%s", got, want)
 			}
+			checkEveryErrorHasHelp(t, got)
 		})
+	}
+}
+
+// checkEveryErrorHasHelp fails when a diagnostic in out has no help line.
+// Every message names the fix (CLAUDE.md); M4 makes that checkable.
+func checkEveryErrorHasHelp(t *testing.T, out string) {
+	t.Helper()
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "error: ") {
+			continue
+		}
+		helped := false
+		for _, next := range lines[i+1:] {
+			if strings.HasPrefix(next, "error: ") {
+				break
+			}
+			if strings.HasPrefix(next, "help: ") {
+				helped = true
+				break
+			}
+		}
+		if !helped {
+			t.Errorf("no help for %q", line)
+		}
 	}
 }
 
@@ -421,6 +462,51 @@ func TestExitStatus(t *testing.T) {
 			code := Main([]string{"run", path}, &out, &out)
 			if code != c.code || !strings.HasPrefix(out.String(), c.out) {
 				t.Errorf("exit %d, want %d; output:\n%s", code, c.code, out.String())
+			}
+		})
+	}
+}
+
+// The fallback the top-level `!` help suggests comes from the type the
+// checker gave the failable (docs/m4.md, part 1).
+func TestTopLevelFallbacks(t *testing.T) {
+	cases := []struct {
+		name, decl, result, want string
+	}{
+		{"Int", "", "Int", "f() else 0"},
+		{"Float", "", "Float", "f() else 0.0"},
+		{"Str", "", "Str", `f() else ""`},
+		{"Bool", "", "Bool", "f() else false"},
+		{"List", "", "List[Int]", "f() else []"},
+		{"Map", "", "Map[Str, Int]", "f() else Map{}"},
+		{"optional", "", "Int?", "f() else none"},
+		{"nothing", "", "nothing", `else err -> log.warn("{err}")`},
+		{"record with a default", "type C {\n  n: Int\n}\nfn C.default() -> C { C { n: 0 } }\n", "C", "f() else C.default()"},
+		{"record without one", "type C {\n  n: Int\n}\n", "C", "f() else err -> ..."},
+		{"in main", "", "Int", "f() else 0"},
+	}
+	dir := t.TempDir()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			sig := "fn f() -> " + c.result + "! {\n  fail \"no\"\n}\n"
+			use := "let v = f()!\n"
+			if c.result == "nothing" {
+				// No signature can name nothing!; fs.write gives one.
+				sig, use = "", fmt.Sprintf("fs.write(%q, \"a\")!\n", filepath.Join(dir, "missing", "x"))
+			}
+			if c.name == "in main" {
+				use = "fn main() {\n  let v = f()!\n}\n"
+			}
+			path := filepath.Join(dir, "p.fn")
+			if err := os.WriteFile(path, []byte(c.decl+sig+use), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var out bytes.Buffer
+			if code := Main([]string{"run", path}, &out, &out); code != 1 {
+				t.Fatalf("exit status %d, want 1\n%s", code, out.String())
+			}
+			if !strings.Contains(out.String(), c.want+"`") {
+				t.Errorf("got\n%s\nwant the help to suggest `%s`", out.String(), c.want)
 			}
 		})
 	}

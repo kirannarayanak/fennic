@@ -121,7 +121,8 @@ func (c *checker) callValue(node ast.Node, what string, t Type, args []ast.Expr,
 	case *Func:
 		if len(args) != len(f.Params) {
 			c.checkArgsLoosely(args, sc, x)
-			c.errorf(node, "", "%s takes %d %s, but was given %d", what, len(f.Params), plural2(len(f.Params), "argument"), len(args))
+			c.errorf(node, fmt.Sprintf("%s is `%s`; give it %s", what, String(f), plural2(len(f.Params), "argument")),
+				"%s takes %d %s, but was given %d", what, len(f.Params), plural2(len(f.Params), "argument"), len(args))
 			return bad
 		}
 		for i, a := range args {
@@ -133,7 +134,12 @@ func (c *checker) callValue(node ast.Node, what string, t Type, args []ast.Expr,
 		return f.Result
 	}
 	c.checkArgsLoosely(args, sc, x)
-	c.errorf(node, "", "this is %s, not a function, so it cannot be called", article(t))
+	help := "only functions and lambdas can be called; remove the `(...)`"
+	switch prune(t).(type) {
+	case *List, *Map:
+		help = "to read from it, use brackets: `xs[i]` or `m[key]`"
+	}
+	c.errorf(node, help, "this is %s, not a function, so it cannot be called", article(t))
 	return bad
 }
 
@@ -302,7 +308,7 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 	}
 	if len(args) != n {
 		c.checkArgsLoosely(args, sc, x)
-		c.errorf(node, "", "`%s` takes %d %s, but was given %d", name, n, plural2(n, "argument"), len(args))
+		c.errorf(node, builtinUsage(name, n), "`%s` takes %d %s, but was given %d", name, n, plural2(n, "argument"), len(args))
 		return bad
 	}
 	strArg := func(i int) {
@@ -318,7 +324,7 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 	case "print":
 		t := c.expr(args[0], sc, x, nil)
 		if f, ok := prune(t).(*Fail); ok {
-			c.mismatch(args[0], f.Elem, t, assignment{}, "`print` needs a value to show", "")
+			c.mismatch(args[0], f.Elem, t, assignment{}, "`print` needs a value to show", "handle the failure first, with `!` or `else`")
 			return Unit
 		}
 		c.interpolated(args[0], t) // print shows anything a string can hold
@@ -393,7 +399,7 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		case *Bad:
 			return bad
 		}
-		c.errorf(args[0], "", "`flatten` needs a list of lists, but this list holds %s", plural(elem))
+		c.errorf(args[0], "this list is already flat; remove the `flatten`", "`flatten` needs a list of lists, but this list holds %s", plural(elem))
 		return bad
 	case "unique":
 		return &List{c.listArg(name, args[0], sc, x)}
@@ -454,7 +460,20 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 			return bad
 		}
 		if _, unknown := prune(m.Val).(*Var); !unknown && !ordered(m.Val) {
-			c.errorf(args[0], "map the values to Ints, Floats or Strs first", "`sort_by_value` needs values that can be ordered, but these are %s", plural(m.Val))
+			key := "..."
+			switch v := prune(m.Val).(type) {
+			case *List, *Map:
+				key = "v.len()"
+			case *Named:
+				for _, f := range v.Fields {
+					if ordered(f.Type) {
+						key = "v." + f.Name
+						break
+					}
+				}
+			}
+			c.errorf(args[0], fmt.Sprintf("turn each value into an Int, Float or Str with `map_values` first, for example `%s |> map_values(v -> %s) |> sort_by_value(%s)`", c.text(args[0]), key, c.text(args[1])),
+				"`sort_by_value` needs values that can be ordered, but these are %s", plural(m.Val))
 		}
 		return &List{&Entry{m.Key, m.Val, "value"}}
 	case "map_values":
@@ -489,7 +508,8 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		ft := c.expr(args[1], sc, x, &Func{[]Type{elem, elem}, elem})
 		if f, ok := prune(ft).(*Func); ok && len(f.Params) == 2 {
 			if a := c.assign(elem, f.Result); !a.ok {
-				c.errorf(args[1], "", "`reduce` combines two %s into one, but this function gives %s", plural(elem), article(f.Result))
+				c.errorf(args[1], fmt.Sprintf("make the function give %s; to combine into another type, `map` the list to it first", article(elem)),
+					"`reduce` combines two %s into one, but this function gives %s", plural(elem), article(f.Result))
 			}
 		} else if !isBad(ft) {
 			c.errorf(args[1], "give it a function of two values, like `(a, b) -> a + b`", "`reduce` needs a function of two values")
@@ -519,13 +539,17 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 			unify(p, &List{c.fresh()})
 			return Int
 		case *Fail:
-			c.mismatch(args[0], p.Elem, t, assignment{}, "`len` needs a List or a Str", "")
+			c.mismatch(args[0], p.Elem, t, assignment{}, "`len` needs a List or a Str", "handle the failure first, with `!` or `else`")
 			return Int
 		case *Opt:
-			c.mismatch(args[0], p.Elem, t, assignment{}, "`len` needs a List or a Str", "")
+			c.mismatch(args[0], p.Elem, t, assignment{}, "`len` needs a List or a Str", "give a default first, with `??`")
 			return Int
 		}
-		c.mismatch(args[0], Str, t, assignment{}, "`len` needs a List or a Str", "")
+		help := "`len` counts a List's items or a Str's characters"
+		if prune(t) == Int {
+			help += fmt.Sprintf(`; to count an Int's digits, write `+"`len(\"{%s}\")`", c.text(args[0]))
+		}
+		c.mismatch(args[0], Str, t, assignment{}, "`len` needs a List or a Str", help)
 		return Int
 	case "first", "last":
 		elem := c.listArg(name, args[0], sc, x)
@@ -550,7 +574,21 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 		if prune(elem) == Int || prune(elem) == Float {
 			return elem
 		}
-		c.errorf(args[0], "", "`sum` adds up Ints or Floats, but this list holds %s", plural(elem))
+		if prune(elem) == Str {
+			c.errorf(args[0], fmt.Sprintf("to put Strs together, use `join(%s, \"\")`", c.text(args[0])), "`sum` adds up Ints or Floats, but this list holds %s", plural(elem))
+			return bad
+		}
+		pick := "..."
+		if n, ok := prune(elem).(*Named); ok {
+			for _, f := range n.Fields {
+				if t := prune(f.Type); t == Int || t == Float {
+					pick = "x." + f.Name
+					break
+				}
+			}
+		}
+		c.errorf(args[0], fmt.Sprintf("pick the number from each element with `sum_by`: `%s |> sum_by(x -> %s)`", c.text(args[0]), pick),
+			"`sum` adds up Ints or Floats, but this list holds %s", plural(elem))
 		return bad
 	case "take":
 		elem := c.listArg(name, args[0], sc, x)
@@ -578,7 +616,8 @@ func (c *checker) builtin(name string, node ast.Node, args []ast.Expr, sc *scope
 			return bad
 		}
 		if a := c.assign(f.Params[0], elem); !a.ok {
-			c.errorf(args[1], "", "`%s` passes %s to its function, but this one takes %s", name, article(elem), article(f.Params[0]))
+			c.errorf(args[1], fmt.Sprintf("make the function take %s, or leave out its parameter's type so it is inferred", article(elem)),
+				"`%s` passes %s to its function, but this one takes %s", name, article(elem), article(f.Params[0]))
 			return bad
 		}
 		result = f.Result
@@ -642,11 +681,24 @@ func (c *checker) listArg(name string, a ast.Expr, sc *scope, x *ctx) Type {
 	}
 	if f, ok := prune(t).(*Fail); ok {
 		if _, isList := prune(f.Elem).(*List); isList {
-			c.mismatch(a, f.Elem, t, assignment{}, "`"+name+"` needs a List", "")
+			c.mismatch(a, f.Elem, t, assignment{}, "`"+name+"` needs a List", "handle the failure first, with `!` or `else`")
 			return bad
 		}
 	}
-	c.errorf(a, "", "`%s` needs a List, but this is %s", name, article(t))
+	help := "pass a List, like `[1, 2]`"
+	switch o := prune(t).(type) {
+	case *Map:
+		help = "a Map's entries come as a List from `sort_by_value(asc)`"
+	case *Opt:
+		if _, isList := prune(o.Elem).(*List); isList {
+			help = fmt.Sprintf("give a default first: `(%s ?? [])`", c.text(a))
+		}
+	case *Basic:
+		if o == Str {
+			help = fmt.Sprintf("`split` a Str into a List first: `split(%s, \" \")`", c.text(a))
+		}
+	}
+	c.errorf(a, help, "`%s` needs a List, but this is %s", name, article(t))
 	return bad
 }
 
@@ -736,7 +788,11 @@ func (c *checker) builtinMethod(node ast.Node, fn *ast.FieldExpr, recv Type, arg
 	want := func(n int) bool {
 		if len(args) != n {
 			c.checkArgsLoosely(args, sc, x)
-			c.errorf(node, "", "`.%s` takes %d %s, but was given %d", fn.Name.Name, n, plural2(n, "argument"), len(args))
+			usage := fmt.Sprintf("write `.%s()`", fn.Name.Name)
+			if n == 1 {
+				usage = fmt.Sprintf("write `.%s(x)`", fn.Name.Name)
+			}
+			c.errorf(node, usage, "`.%s` takes %d %s, but was given %d", fn.Name.Name, n, plural2(n, "argument"), len(args))
 			return false
 		}
 		return true
@@ -777,11 +833,15 @@ func (c *checker) mapArg(name string, a ast.Expr, sc *scope, x *ctx) *Map {
 	}
 	if f, ok := prune(t).(*Fail); ok {
 		if _, isMap := prune(f.Elem).(*Map); isMap {
-			c.mismatch(a, f.Elem, t, assignment{}, "`"+name+"` needs a Map", "")
+			c.mismatch(a, f.Elem, t, assignment{}, "`"+name+"` needs a Map", "handle the failure first, with `!` or `else`")
 			return nil
 		}
 	}
-	c.errorf(a, "", "`%s` needs a Map, but this is %s", name, article(t))
+	help := "pass a Map, like `Map{\"a\": 1}`"
+	if _, isList := prune(t).(*List); isList {
+		help = fmt.Sprintf("make a Map from a List with `group_by`: `%s |> group_by(x -> ...)`", c.text(a))
+	}
+	c.errorf(a, help, "`%s` needs a Map, but this is %s", name, article(t))
 	return nil
 }
 
@@ -859,11 +919,67 @@ func (c *checker) chanMethod(node ast.Node, fn *ast.FieldExpr, ch *Chan, args []
 	case "close":
 		if len(args) != 0 {
 			c.checkArgsLoosely(args, sc, x)
-			c.errorf(node, "", "`.close` takes no arguments, but was given %d", len(args))
+			c.errorf(node, "write `.close()`", "`.close` takes no arguments, but was given %d", len(args))
 		}
 		return Unit
 	}
 	c.checkArgsLoosely(args, sc, x)
 	c.errorf(fn.Name, "a channel has `.send(x)` and `.close()`; read it with `for x in ch`", "a channel has no method `%s`", fn.Name.Name)
 	return bad
+}
+
+// builtinSigs are the built-ins' signatures as docs/types.md writes them,
+// for the help when a call has the wrong number of arguments.
+var builtinSigs = map[string][]string{
+	"print":         {"print(T)"},
+	"log.warn":      {"log.warn(Str)"},
+	"len":           {"len(List[T]) -> Int", "len(Str) -> Int"},
+	"first":         {"first(List[T]) -> T?", "first(List[T], (T) -> Bool) -> T?"},
+	"last":          {"last(List[T]) -> T?"},
+	"sum":           {"sum(List[Int]) -> Int", "sum(List[Float]) -> Float"},
+	"map":           {"map(List[T], (T) -> U) -> List[U]"},
+	"each":          {"each(List[T], (T) -> U)"},
+	"filter":        {"filter(List[T], (T) -> Bool) -> List[T]"},
+	"sort_by":       {"sort_by(List[T], (T) -> K) -> List[T]"},
+	"take":          {"take(List[T], Int) -> List[T]"},
+	"map_par":       {"map_par(List[T], (T) -> U) -> List[U]"},
+	"sort":          {"sort(List[T]) -> List[T]"},
+	"reduce":        {"reduce(List[T], (T, T) -> T) -> T?"},
+	"env":           {"env(Str) -> Str?"},
+	"lower":         {"lower(Str) -> Str"},
+	"words":         {"words(Str) -> List[Str]"},
+	"tally":         {"tally(List[T]) -> Map[T, Int]"},
+	"top":           {"top(Map[K, Int], Int) -> List[Count[K]]"},
+	"group_by":      {"group_by(List[T], (T) -> K) -> Map[K, List[T]]"},
+	"map_values":    {"map_values(Map[K, V], (V) -> W) -> Map[K, W]"},
+	"sum_by":        {"sum_by(List[T], (T) -> N) -> N"},
+	"sort_by_value": {"sort_by_value(Map[K, V], asc | desc) -> List[Entry[K, V]]"},
+	"csv.read":      {"csv.read[T](Str) -> List[T]!"},
+	"flatten":       {"flatten(List[List[T]]) -> List[T]"},
+	"unique":        {"unique(List[T]) -> List[T]"},
+	"json.encode":   {"json.encode(T) -> Str"},
+	"json.parse":    {"json.parse(Str) -> T!"},
+	"fs.list":       {"fs.list(Str, Str) -> List[Str]!"},
+	"fs.write":      {"fs.write(Str, Str) -> nothing!"},
+	"fs.read":       {"fs.read(Str) -> Str!"},
+	"int.parse":     {"int.parse(Str) -> Int!"},
+	"split":         {"split(Str, Str) -> List[Str]"},
+	"join":          {"join(List[Str], Str) -> Str"},
+	"contains":      {"contains(Str, Str) -> Bool"},
+	"starts_with":   {"starts_with(Str, Str) -> Bool"},
+	"trim":          {"trim(Str) -> Str"},
+	"pad_start":     {"pad_start(Str, Int) -> Str", "pad_start(Str, Int, Str) -> Str"},
+	"pad_end":       {"pad_end(Str, Int) -> Str", "pad_end(Str, Int, Str) -> Str"},
+	"to_float":      {"to_float(Int) -> Float"},
+	"to_int":        {"to_int(Float) -> Int!"},
+}
+
+// builtinUsage is the help for a call to a built-in with the wrong number
+// of arguments: its signature, or every form it has.
+func builtinUsage(name string, n int) string {
+	forms := builtinSigs[name]
+	if len(forms) == 0 {
+		return fmt.Sprintf("give it %s", plural2(n, "argument"))
+	}
+	return "it is written `" + strings.Join(forms, "` or `") + "`"
 }

@@ -62,7 +62,11 @@ func (c *checker) expr(e ast.Expr, sc *scope, x *ctx, want Type) Type {
 		if prune(t) == Int || prune(t) == Float {
 			return t
 		}
-		c.errorf(e, "", "`-` needs an Int or a Float, but this is %s", article(t))
+		help := "negate an Int or a Float"
+		if prune(t) == Str {
+			help = fmt.Sprintf("`-` negates a number; to read a number from a Str, use `int.parse(%s)`", c.text(e.X))
+		}
+		c.errorf(e, help, "`-` needs an Int or a Float, but this is %s", article(t))
 		return bad
 	case *ast.BinaryExpr:
 		return c.binary(e, sc, x, want)
@@ -117,7 +121,7 @@ func (c *checker) interpolated(p ast.Expr, t Type) {
 	switch g := prune(t).(type) {
 	case *Fail:
 		src := c.text(p)
-		c.errorf(p, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, fallback(g.Elem), src),
+		c.errorf(p, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, c.fallback(g.Elem), src),
 			"%s cannot go in a string until its failure is handled", article(t))
 	case *Func:
 		c.errorf(p, "call the function and interpolate its result", "a function cannot go in a string")
@@ -217,7 +221,7 @@ func (c *checker) list(e *ast.ListLit, sc *scope, x *ctx, want Type) Type {
 
 func (c *checker) mismatchElem(el ast.Expr, elem, got Type, a assignment) {
 	if a.why != "" {
-		c.mismatch(el, elem, got, a, "", "")
+		c.mismatch(el, elem, got, a, "", "make every element "+article(elem))
 		return
 	}
 	c.errorf(el, "make every element "+article(elem), "this list holds %s, but this element is %s", plural(elem), article(got))
@@ -278,7 +282,8 @@ func (c *checker) with(e *ast.WithExpr, sc *scope, x *ctx) Type {
 			c.expr(fi.Value, sc, x, nil)
 		}
 		if _, isBad := prune(t).(*Bad); !isBad {
-			c.errorf(e.X, "", "`with` copies a record, but this is %s", article(t))
+			c.errorf(e.X, fmt.Sprintf("`with` changes fields of a record value, like `user with { age: 32 }`; %s has no fields", article(t)),
+				"`with` copies a record, but this is %s", article(t))
 		}
 		return bad
 	}
@@ -326,7 +331,7 @@ func (c *checker) member(e ast.Node, recv Type, xe ast.Expr, name *ast.Ident, op
 		if !optional {
 			src := c.text(xe)
 			ft := c.lookupMember(o.Elem, name.Name)
-			c.errorf(xe, fmt.Sprintf("use `?.` and give a default: `%s?.%s ?? %s`", src, name.Name, fallback(ft)),
+			c.errorf(xe, fmt.Sprintf("use `?.` and give a default: `%s?.%s ?? %s`", src, name.Name, c.fallback(ft)),
 				"`%s` is %s, so it might be none and `.%s` cannot be read directly", src, article(recv), name.Name)
 			return bad
 		}
@@ -356,7 +361,22 @@ func (c *checker) member(e ast.Node, recv Type, xe ast.Expr, name *ast.Ident, op
 	case *Entry:
 		c.errorf(name, fmt.Sprintf("its fields are key and %s", r.ValName), "%s has no field `%s`", Article(String(recv)), name.Name)
 	default:
-		c.errorf(name, "", "%s has no field or method `%s`", Article(String(recv)), name.Name)
+		help := fmt.Sprintf("call a function with it instead: `%s(%s)`", name.Name, c.text(xe))
+		switch r := prune(recv).(type) {
+		case *Named:
+			help = fmt.Sprintf("declare it as a method: `fn %s.%s(self) ...`", r.Name, name.Name)
+		case *List:
+			help = "a List has `.len()` and `.push(x)`; other operations are functions, like `xs |> " + name.Name + "()`"
+		case *Map:
+			help = "a Map has `.len()`; read an entry with `m[key]`"
+		case *Iface:
+			names := make([]string, len(r.Methods))
+			for i, m := range r.Methods {
+				names[i] = "`" + m.Name + "`"
+			}
+			help = fmt.Sprintf("a value of an interface has only the methods the interface lists (%s); add `%s` to `interface %s`", strings.Join(names, ", "), name.Name, r.Name)
+		}
+		c.errorf(name, help, "%s has no field or method `%s`", Article(String(recv)), name.Name)
 	}
 	return bad
 }
@@ -479,7 +499,7 @@ func (c *checker) binary(e *ast.BinaryExpr, sc *scope, x *ctx, want Type) Type {
 	}{{l, e.Left}, {r, e.Right}} {
 		if f, ok := prune(side.t).(*Fail); ok {
 			src := c.text(side.n)
-			c.errorf(side.n, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, fallback(f.Elem), src),
+			c.errorf(side.n, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, c.fallback(f.Elem), src),
 				"`%s` needs values, but this is %s, which might be a failure", e.Op, article(side.t))
 			return bad
 		}
@@ -492,7 +512,14 @@ func (c *checker) binary(e *ast.BinaryExpr, sc *scope, x *ctx, want Type) Type {
 			n ast.Expr
 		}{{l, e.Left}, {r, e.Right}} {
 			if prune(side.t) != Int {
-				c.errorf(side.n, "", "`..` makes a range of Ints, but this is %s", article(side.t))
+				help := "write a range of Ints, like `1..10`"
+				switch prune(side.t) {
+				case Float:
+					help = fmt.Sprintf("turn it into an Int first: `to_int(%s)!`", c.text(side.n))
+				case Str:
+					help = fmt.Sprintf("read the Int from the Str first: `int.parse(%s)!`", c.text(side.n))
+				}
+				c.errorf(side.n, help, "`..` makes a range of Ints, but this is %s", article(side.t))
 				return bad
 			}
 		}
@@ -553,17 +580,21 @@ func (c *checker) arith(e *ast.BinaryExpr, l, r Type) Type {
 	default:
 		if o, ok := pl.(*Opt); ok && isNum(prune(o.Elem)) {
 			src := c.text(e.Left)
-			c.errorf(e.Left, fmt.Sprintf("give a default for when it is missing: `%s ?? %s`", src, fallback(o.Elem)),
+			c.errorf(e.Left, fmt.Sprintf("give a default for when it is missing: `%s ?? %s`", src, c.fallback(o.Elem)),
 				"`%s` needs numbers, but this is %s, which might be none", e.Op, article(l))
 			return bad
 		}
 		if o, ok := pr.(*Opt); ok && isNum(prune(o.Elem)) {
 			src := c.text(e.Right)
-			c.errorf(e.Right, fmt.Sprintf("give a default for when it is missing: `%s ?? %s`", src, fallback(o.Elem)),
+			c.errorf(e.Right, fmt.Sprintf("give a default for when it is missing: `%s ?? %s`", src, c.fallback(o.Elem)),
 				"`%s` needs numbers, but this is %s, which might be none", e.Op, article(r))
 			return bad
 		}
-		c.errorf(e, "", "`%s` needs two numbers, but got %s and %s", e.Op, article(l), article(r))
+		help := "use two Ints or two Floats"
+		if prune(l) == Str || prune(r) == Str {
+			help = "read a number from a Str with `int.parse(...)`; to join text, interpolate it: `\"{a}{b}\"`"
+		}
+		c.errorf(e, help, "`%s` needs two numbers, but got %s and %s", e.Op, article(l), article(r))
 	}
 	return bad
 }
@@ -622,9 +653,15 @@ func (c *checker) propagate(e *ast.PropagateExpr, sc *scope, x *ctx, want Type) 
 		case ctxLambda:
 			k.usedBang = true
 			return f.Elem
-		case ctxTogether, ctxTest, ctxTop:
+		case ctxTogether, ctxTest:
+			return f.Elem
+		case ctxTop:
+			c.info.Fallbacks[e] = c.topFallback(f.Elem)
 			return f.Elem
 		case ctxFn:
+			if k.fn.isMain() {
+				c.info.Fallbacks[e] = c.topFallback(f.Elem)
+			}
 			if _, can := prune(k.fn.result).(*Fail); !can && !k.fn.isMain() {
 				c.errorf(e, fmt.Sprintf("change its result type to `-> %s!`, or handle the failure here with `else`", String(k.fn.result)),
 					"`!` passes a failure on, but `%s` cannot fail", k.fn.name)
@@ -811,7 +848,11 @@ func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
 	case *ast.LiteralPattern:
 		lt := c.expr(p.Value, sc, nil, nil)
 		if !unify(t, lt) && !isBad(t) {
-			c.errorf(p, "", "this pattern is %s, but the value matched is %s", article(lt), article(t))
+			help := "match it with a name or `_`"
+			if v := c.plainValue(t); v != "" {
+				help = fmt.Sprintf("write the literal as %s, like `%s`", article(t), v)
+			}
+			c.errorf(p, help, "this pattern is %s, but the value matched is %s", article(lt), article(t))
 		}
 	case *ast.TuplePattern:
 		elems := make([]Type, len(p.Elems))
@@ -820,7 +861,11 @@ func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
 		}
 		if !unify(t, &Tuple{elems}) {
 			if !isBad(t) {
-				c.errorf(p, "", "this pattern is a tuple of %d, but the value matched is %s", len(p.Elems), article(t))
+				help := "match it with a name or `_`"
+				if tt, ok := prune(t).(*Tuple); ok {
+					help = fmt.Sprintf("give one pattern per position, `(%s)`, with `_` for those not needed", strings.TrimSuffix(strings.Repeat("_, ", len(tt.Elems)), ", "))
+				}
+				c.errorf(p, help, "this pattern is a tuple of %d, but the value matched is %s", len(p.Elems), article(t))
 			}
 			for i := range elems {
 				elems[i] = bad
@@ -833,7 +878,11 @@ func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
 		elem := Type(c.fresh())
 		if !unify(t, &List{elem}) {
 			if !isBad(t) {
-				c.errorf(p, "", "this pattern is a list, but the value matched is %s", article(t))
+				help := "match it with a name or `_`"
+				if prune(t) == Str {
+					help = "match a Str with a literal, or `split` it into a List first"
+				}
+				c.errorf(p, help, "this pattern is a list, but the value matched is %s", article(t))
 			}
 			elem = bad
 		}
@@ -859,7 +908,11 @@ func (c *checker) pattern(p ast.Pattern, t Type, sc *scope) {
 			if gv, ok := c.variant[name]; ok && unify(t, gv.Sum) {
 				v = gv
 			} else if ok {
-				c.errorf(p, "", "this pattern is %s, but the value matched is %s", Article(gv.Sum.Name), article(t))
+				help := "match it with a name or `_`"
+				if n, ok := prune(t).(*Named); ok && n.IsSum() {
+					help = "its variants are " + variantList(n)
+				}
+				c.errorf(p, help, "this pattern is %s, but the value matched is %s", Article(gv.Sum.Name), article(t))
 			} else {
 				c.errorf(p.Name, "declare it in a sum type, like `type T = | "+name+"(...)`", "there is no variant `%s`", name)
 			}
@@ -1008,7 +1061,18 @@ func (c *checker) index(e *ast.IndexExpr, sc *scope, x *ctx) Type {
 		unify(l, &List{elem})
 		return optional(elem)
 	}
-	c.errorf(e.X, "", "only a List or a Map can be indexed with `[...]`, but this is %s", article(t))
+	help := "index a List, `xs[0]`, or a Map, `m[key]`"
+	switch o := prune(t).(type) {
+	case *Basic:
+		if o == Str {
+			help = fmt.Sprintf("split it into characters first: `split(%s, \"\")[i]`", c.text(e.X))
+		}
+	case *Opt:
+		help = fmt.Sprintf("give a default first: `(%s ?? %s)[...]`", c.text(e.X), c.fallback(o.Elem))
+	case *Fail:
+		help = fmt.Sprintf("handle the failure first: `%s!` passes it on, and `else` gives a fallback", c.text(e.X))
+	}
+	c.errorf(e.X, help, "only a List or a Map can be indexed with `[...]`, but this is %s", article(t))
 	return bad
 }
 

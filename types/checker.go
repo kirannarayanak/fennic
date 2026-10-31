@@ -16,6 +16,10 @@ type Info struct {
 	// keyed by the call (a *ast.CallExpr, or the *ast.PipeExpr of
 	// `text |> json.parse()`). For csv.read it is the record of each row.
 	Targets map[ast.Node]Type
+	// Fallbacks is, for each `!` at the top level or in `main`, the text to
+	// suggest after `else` if the failure stops the program: a plain value of
+	// the type, or a handler.
+	Fallbacks map[*ast.PropagateExpr]string
 }
 
 // Check type-checks a parsed program. It returns every problem found, in
@@ -28,7 +32,7 @@ func Check(file *ast.File, src string) ([]diag.Diagnostic, *Info) {
 		variant: map[string]*Variant{},
 		funcs:   map[string]*sig{},
 		methods: map[string]map[string]*sig{},
-		info:    &Info{Targets: map[ast.Node]Type{}},
+		info:    &Info{Targets: map[ast.Node]Type{}, Fallbacks: map[*ast.PropagateExpr]string{}},
 	}
 	c.declare(file)
 	c.body(file)
@@ -372,7 +376,16 @@ func plural2(n int, word string) string {
 }
 
 // fallback is source text for a sensible default of type t, used in help.
-func fallback(t Type) string {
+func (c *checker) fallback(t Type) string {
+	if v := c.plainValue(t); v != "" {
+		return v
+	}
+	return "..."
+}
+
+// plainValue is the simplest value of t to write as a fallback, or "" when
+// t has none: `0`, `[]`, `none`, or `T.default()` where the program has one.
+func (c *checker) plainValue(t Type) string {
 	switch t := prune(t).(type) {
 	case *Basic:
 		switch t {
@@ -387,8 +400,28 @@ func fallback(t Type) string {
 		}
 	case *List:
 		return "[]"
+	case *Map:
+		return "Map{}"
+	case *Opt:
+		return "none"
+	case *Named:
+		if d, ok := c.methods[t.Name]["default"]; ok && !d.self && len(d.params) == 0 && len(d.tparams) == 0 && prune(d.result) == t {
+			return t.Name + ".default()"
+		}
 	}
-	return "..."
+	return ""
+}
+
+// topFallback is what to suggest after `else` for a failure of a T that
+// stops the program.
+func (c *checker) topFallback(t Type) string {
+	if v := c.plainValue(t); v != "" {
+		return v
+	}
+	if prune(t) == Unit {
+		return `err -> log.warn("{err}")`
+	}
+	return "err -> ..."
 }
 
 // mismatch reports a value of type got where want was expected. lead is the
@@ -396,19 +429,23 @@ func fallback(t Type) string {
 func (c *checker) mismatch(n ast.Node, want, got Type, a assignment, lead, plainHelp string) {
 	src := c.text(n)
 	if a.why != "" {
-		c.errorf(n, a.fix, "`%s` cannot be used as a `%s`: %s", String(got), String(want), a.why)
+		help := a.fix
+		if help == "" {
+			help = plainHelp
+		}
+		c.errorf(n, help, "`%s` cannot be used as a `%s`: %s", String(got), String(want), a.why)
 		return
 	}
 	switch g := prune(got).(type) {
 	case *Fail:
 		if c.assign(want, g.Elem).ok {
-			c.errorf(n, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, fallback(g.Elem), src),
+			c.errorf(n, fmt.Sprintf("handle the failure first: `%s else %s` gives a fallback, and `%s!` passes it on", src, c.fallback(g.Elem), src),
 				"%s, but this is %s, which might be a failure", lead, article(got))
 			return
 		}
 	case *Opt:
 		if c.assign(want, g.Elem).ok {
-			c.errorf(n, fmt.Sprintf("give a default for when it is missing: `%s ?? %s`", src, fallback(g.Elem)),
+			c.errorf(n, fmt.Sprintf("give a default for when it is missing: `%s ?? %s`", src, c.fallback(g.Elem)),
 				"%s, but this is %s, which might be none", lead, article(got))
 			return
 		}

@@ -23,7 +23,7 @@ func builtinReadCSV(in *Interp, c *callSite, args []Value) Value {
 	}
 	target, ok := in.targets[c.node].(*types.Named)
 	if !ok {
-		in.fail(c.node, "", "csv.read needs a record type, which the type checker should have given")
+		in.internal(c.node, "csv.read needs a record type, which the type checker should have given")
 	}
 	data, err := in.readFile(path)
 	if err != nil {

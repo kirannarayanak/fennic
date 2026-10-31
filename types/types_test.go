@@ -34,6 +34,11 @@ func runTypeCases(t *testing.T, cases []typeCase) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := check(t, c.src)
+			for _, g := range got {
+				if strings.HasSuffix(g, " | ") {
+					t.Errorf("no help for %q; every message names the fix", strings.TrimSuffix(g, " | "))
+				}
+			}
 			if c.want == "" {
 				if len(got) > 0 {
 					t.Errorf("unexpected error:\n  %s\nsrc:\n%s", strings.Join(got, "\n  "), c.src)
@@ -65,7 +70,7 @@ func TestNumbers(t *testing.T) {
 		{"adding strings", `let s = "a" + "b"`, "`+` adds numbers, not strings | to join strings, interpolate them: \"{a}{b}\""},
 		{"comparing kinds", `let b = 1 < "x"`, "cannot compare an Int with a Str | compare two Ints, two Floats or two Strs"},
 		{"equality across kinds", `let b = 1 == "x"`, "cannot compare an Int with a Str using `==` | compare two values of the same type"},
-		{"negating a string", `let s = -"a"`, "`-` needs an Int or a Float, but this is a Str | "},
+		{"negating a string", `let s = -"a"`, "`-` needs an Int or a Float, but this is a Str | `-` negates a number; to read a number from a Str, use `int.parse(\"a\")`"},
 		{"arithmetic on an optional", "let a = first([1])\nlet b = a + 1", "`+` needs numbers, but this is an Int?, which might be none | give a default for when it is missing: `a ?? 0`"},
 	})
 }
@@ -88,7 +93,7 @@ func TestBindingsAndFunctions(t *testing.T) {
 		{"unknown type", "fn f(a: Nope) { }", "there is no type `Nope` | declare it with `type Nope { ... }`, or check the spelling"},
 		{"double optional", "fn f(a: Int??) { }", "`Int??` is optional twice | write `Int?` once; a value is either there or not"},
 		{"optional after failable", "fn f() -> Int!? { 1 }", "`Int!?` is not a type | put `?` before `!`: `Int?!`"},
-		{"calling a non-function", "let x = 1\nlet y = x(2)", "this is an Int, not a function, so it cannot be called | "},
+		{"calling a non-function", "let x = 1\nlet y = x(2)", "this is an Int, not a function, so it cannot be called | only functions and lambdas can be called; remove the `(...)`"},
 		{"builtin as a value", "let p = print", "`print` is built in, so it can only be called, not passed around | call it: `print(...)`"},
 		{"assert needs a bool", "assert 1", "assert needs a Bool, but this is an Int | assert a comparison, like `assert x == 3`"},
 	})
@@ -102,7 +107,7 @@ func TestStrings(t *testing.T) {
 		{"print shows any value", "print(42)\nprint([1])\nprint(none)", ""},
 		{"print cannot show a function", "fn f() { }\nprint(f)", "a function cannot go in a string | call the function and interpolate its result"},
 		{"len of Str", `let n = len("abc") + 1`, ""},
-		{"len of Int", `let n = len(3)`, "`len` needs a List or a Str, but this is an Int | "},
+		{"len of Int", `let n = len(3)`, "`len` needs a List or a Str, but this is an Int | `len` counts a List's items or a Str's characters; to count an Int's digits, write `len(\"{3}\")`"},
 	})
 }
 
@@ -196,7 +201,7 @@ func TestMethodsAndInterfaces(t *testing.T) {
 		{"wrong arity", sink + "type Con {}\nfn Con.write(self) { }\nfn r(s: Sink) { }\nr(Con {})", "`Con` cannot be used as a `Sink`: its `write` takes 0 arguments, but `Sink` needs 1 | change it to `fn Con.write(self, line: Str)`"},
 		{"wrong result", "interface M { fn area(self) -> Int }\ntype Sq {}\nfn Sq.area(self) -> Float { 1.0 }\nfn r(m: M) { }\nr(Sq {})", "`Sq` cannot be used as a `M`: its `area` returns a Float, but `M` needs an Int | change it to `fn Sq.area(self) -> Int`"},
 		{"interface method call", sink + "fn r(s: Sink) { s.write(1) }", "`write` needs a Str, but this is an Int | to turn a value into a Str, interpolate it: \"{1}\""},
-		{"interface has no such method", sink + "fn r(s: Sink) { s.flush() }", "a Sink has no field or method `flush` | "},
+		{"interface has no such method", sink + "fn r(s: Sink) { s.flush() }", "a Sink has no field or method `flush` | a value of an interface has only the methods the interface lists (`write`); add `flush` to `interface Sink`"},
 	})
 }
 
@@ -210,7 +215,7 @@ func TestGenerics(t *testing.T) {
 		{"Ord decided later", largest + "type P {\n  x: Int\n}\nlet p = largest([]) ?? P { x: 1 }", "`largest` needs `T: Ord`, but here `T` is `P`, which cannot be ordered | only Int, Float and Str can be ordered; to order records, sort by a field: `sort_by(p -> p.x)`"},
 		{"unconstrained", "fn first_or[T](items: List[T], d: T) -> T { first(items) ?? d }\nlet x = first_or([1], 0) + 1", ""},
 		{"arguments must agree", "fn first_or[T](items: List[T], d: T) -> T { first(items) ?? d }\nlet x = first_or([1], \"a\")", "`first_or` needs an Int for `d`, but this is a Str | pass an Int"},
-		{"type parameters are rigid", "fn f[T](x: T) -> Int { x + 1 }", "`+` needs two numbers, but got a T and an Int | "},
+		{"type parameters are rigid", "fn f[T](x: T) -> Int { x + 1 }", "`+` needs two numbers, but got a T and an Int | use two Ints or two Floats"},
 		{"interface constraint", "interface Named { fn name(self) -> Str }\ntype D {}\nfn D.name(self) -> Str { \"d\" }\nfn hi[T: Named](x: T) -> Str { x.name() }\nlet s = hi(D {})", ""},
 		{"interface constraint not satisfied", "interface Named { fn name(self) -> Str }\ntype D {}\nfn hi[T: Named](x: T) -> Str { x.name() }\nlet s = hi(D {})", "`hi` needs `T: Named`, but here `T` is `D`: it has no method `name` | add `fn D.name(self) -> Str { ... }`"},
 		{"not an interface", "fn f[T: Int](x: T) { }", "`Int` is not an interface, so it cannot constrain a type parameter | use `Ord` or the name of an interface"},
@@ -226,8 +231,8 @@ func TestListsAndPipelines(t *testing.T) {
 		{"empty list from use", "let xs = []\nlet n = (first(xs) ?? 0) + 1", ""},
 		{"filter needs a Bool", `let xs = [1] |> filter(n -> n)`, "filter's function must return a Bool, but this one returns an Int | give filter a function that returns a Bool, like `x -> x > 0`"},
 		{"sort key must be ordered", "let xs = [[1]] |> sort_by(v -> v)", "sort_by needs a key that can be ordered, but this one is a List[Int] | return an Int, a Float or a Str from the key function"},
-		{"sum of strings", `let n = sum(["a"])`, "`sum` adds up Ints or Floats, but this list holds Strs | "},
-		{"not a list", `let n = first(3)`, "`first` needs a List, but this is an Int | "},
+		{"sum of strings", `let n = sum(["a"])`, "`sum` adds up Ints or Floats, but this list holds Strs | to put Strs together, use `join([\"a\"], \"\")`"},
+		{"not a list", `let n = first(3)`, "`first` needs a List, but this is an Int | pass a List, like `[1, 2]`"},
 		{"take count", `let xs = [1] |> take("2")`, "`take` needs an Int, but this is a Str | write a count, like `take(10)`"},
 		{"lambda value", "let inc = n -> n + 1\nlet x = inc(2) + inc(3)", ""},
 		{"lambda value used at one type", "let inc = n -> n + 1\nlet x = inc(2.0)", "`inc` needs an Int, but this is a Float | pass an Int"},
@@ -300,7 +305,7 @@ func TestControlFlowTypes(t *testing.T) {
 	runTypeCases(t, []typeCase{
 		{"if expression", `let x = if 1 > 0 { "a" } else { "b" }` + "\nprint(x)", ""},
 		{"else if chain", "fn f(n: Int) -> Str {\n  if n < 0 { \"neg\" } else if n == 0 { \"zero\" } else { \"pos\" }\n}", ""},
-		{"if without else gives nothing", "let x = if true { 1 }\nlet y = x + 1", "`+` needs two numbers, but got nothing and an Int | "},
+		{"if without else gives nothing", "let x = if true { 1 }\nlet y = x + 1", "`+` needs two numbers, but got nothing and an Int | use two Ints or two Floats"},
 		{"branches differ", `let x = if true { 1 } else { "a" }`, "this branch gives a Str, but the first branch gives an Int | make both branches of the `if` give the same type"},
 		{"condition must be Bool", `if 1 { print("x") }`, "`if` needs a Bool, but this is an Int | compare it to make a Bool, like `x > 0`"},
 		{"and or not", `let b = not (1 < 2 and 3 > 4) or false`, ""},
@@ -309,7 +314,7 @@ func TestControlFlowTypes(t *testing.T) {
 		{"for over a list", "for x in [1, 2] {\n  print(\"{x + 1}\")\n}", ""},
 		{"for over a range", "var t = 0\nfor n in 1..10 {\n  t += n\n}", ""},
 		{"for over a number", "for n in 3 { }", "`for` goes over a List or a channel, but this is an Int | go over a List or a range, like `for n in 1..10`"},
-		{"range of floats", `let r = 1.0..2.0`, "`..` makes a range of Ints, but this is a Float | "},
+		{"range of floats", `let r = 1.0..2.0`, "`..` makes a range of Ints, but this is a Float | turn it into an Int first: `to_int(1.0)!`"},
 		{"plus equals keeps the type", "var s = 0\ns += 1.5", "`s` holds an Int, so it cannot have a Float added to it | declare `s` as a Float, like `var s = 0.0`, or convert the value with `to_int(...)`"},
 		{"underscore cannot be read", "for _ in [1] {\n  print(_)\n}", "`_` stands for a value that is not used, so it cannot be read | give the value a name to use it"},
 	})
@@ -335,10 +340,10 @@ func TestPatternTypes(t *testing.T) {
 		{"literal arm does not cover the variant", status + "fn f(s: Status) -> Str {\n  match s {\n    Queued -> \"q\"\n    Done(0) -> \"ok\"\n  }\n}", "this `match` does not handle `Done` | add an arm: `Done(code) -> ...`"},
 		{"variant value with no fields", status + "let s = Queued\nlet t = [Queued, Done(1)]", ""},
 		{"tuple patterns", "let s = match (1, \"a\") {\n  (0, _) -> \"zero\"\n  (n, t) -> \"{n}{t}\"\n}", ""},
-		{"tuple pattern of the wrong size", "let s = match (1, 2) {\n  (a, b, c) -> 0\n  _ -> 1\n}", "this pattern is a tuple of 3, but the value matched is a (Int, Int) | "},
+		{"tuple pattern of the wrong size", "let s = match (1, 2) {\n  (a, b, c) -> 0\n  _ -> 1\n}", "this pattern is a tuple of 3, but the value matched is a (Int, Int) | give one pattern per position, `(_, _)`, with `_` for those not needed"},
 		{"list patterns need a catch-all", "fn f(xs: List[Int]) -> Int {\n  match xs {\n    [] -> 0\n    [x] -> x\n  }\n}", "this `match` does not handle every value | add `_ -> ...` as the last arm to handle the rest"},
 		{"list pattern types", "fn f(xs: List[Str]) -> Int {\n  match xs {\n    [x] -> x + 1\n    _ -> 0\n  }\n}", "`+` adds numbers, not strings | to join strings, interpolate them: \"{a}{b}\""},
-		{"literal of the wrong type", "let s = match 3 {\n  \"a\" -> 1\n  _ -> 2\n}", "this pattern is a Str, but the value matched is an Int | "},
+		{"literal of the wrong type", "let s = match 3 {\n  \"a\" -> 1\n  _ -> 2\n}", "this pattern is a Str, but the value matched is an Int | write the literal as an Int, like `0`"},
 		{"bool covered by true and false", "let s = match 1 > 0 {\n  true -> 1\n  false -> 0\n}", ""},
 		{"arm after a catch-all", "let s = match 3 {\n  _ -> 1\n  0 -> 2\n}", "this arm can never run: the arm on line 2 already matches everything | remove it, or move it above line 2"},
 		{"unknown variant", status + "let s = match Queued {\n  Running(p) -> 1\n  _ -> 0\n}", "`Status` has no variant `Running` | its variants are Queued and Done"},
@@ -360,7 +365,7 @@ func TestM3Calls(t *testing.T) {
 		{"push of the wrong type", "var xs = [1]\nxs.push(\"a\")", "this list holds Ints, so `.push` needs an Int, but this is a Str | push an Int"},
 		{"index", "let xs = [\"a\"]\nlet x = xs[0] ?? \"\"", ""},
 		{"index needs an Int", "let xs = [1]\nlet x = xs[\"a\"]", "a list index needs an Int, but this is a Str | pass an Int"},
-		{"index of a non-list", "let x = 3[0]", "only a List or a Map can be indexed with `[...]`, but this is an Int | "},
+		{"index of a non-list", "let x = 3[0]", "only a List or a Map can be indexed with `[...]`, but this is an Int | index a List, `xs[0]`, or a Map, `m[key]`"},
 		{"explicit type arguments", "fn pair[T](a: T, b: T) -> List[T] { [a, b] }\nlet xs = pair[Str](\"a\", \"b\")", ""},
 		{"explicit type arguments are checked", "fn pair[T](a: T, b: T) -> List[T] { [a, b] }\nlet xs = pair[Str](1, 2)", "`pair` needs a Str for `a`, but this is an Int | to turn a value into a Str, interpolate it: \"{1}\""},
 		{"too many type arguments", "fn id[T](a: T) -> T { a }\nlet x = id[Int, Str](1)", "`id` takes 1 type argument, but was given 2 | give one type for each of T"},
@@ -419,7 +424,7 @@ func TestConcurrencyTypes(t *testing.T) {
 		{"dates", "type V {\n  day: Date\n}\nlet vs = csv.read[V](\"v.csv\") else []\nlet days = vs |> map(v -> v.day) |> unique()", ""},
 		{"fs.list fails", "let fs_ = fs.list(\".\", \"*\")\nlet n = fs_.len()", "`fs_` is a List[Str]!, which might be a failure, so `.len` cannot be read yet | handle the failure first: `fs_!` passes it on, and `else` gives a fallback"},
 		{"fs.write fails", "fn main() {\n  fs.write(\"a\", \"b\")!\n}", ""},
-		{"flatten needs lists", "let x = [1] |> flatten()", "`flatten` needs a list of lists, but this list holds Ints | "},
+		{"flatten needs lists", "let x = [1] |> flatten()", "`flatten` needs a list of lists, but this list holds Ints | this list is already flat; remove the `flatten`"},
 		{"json.encode of a map with Int keys", "print(json.encode(Map{1: \"a\"}))", "`json.encode` cannot encode a Map[Int, Str]: only maps with Str keys have a JSON form | encode records, lists, maps with Str keys, and plain values"},
 	})
 }

@@ -143,7 +143,7 @@ func TestFunctionsAndMethods(t *testing.T) {
 		{"wrong arity", "fn f(a: Int) -> Int { a }\nf(1, 2)", "`f` takes 1 argument, but was given 2", "write `f(a)`"},
 		{"method without value", "type C {\n  n: Int\n}\nfn C.get(self) -> Int { self.n }\nC.get()",
 			"`C.get` is a method and needs a value to work on", "call it on a value, like `x.get(...)`"},
-		{"calling a non-function", "let x = 1\nx()", "this is a Int, not a function, so it cannot be called", ""},
+		{"calling a non-function", "let x = 1\nx()", "internal error: this is an Int, not a function, so it cannot be called", "this is a bug in Fennic, not in your program: the type checker should have refused it. Please report it with this program"},
 		{"calling a record type", "type C {\n  n: Int\n}\nC(1)", "`C` is a record type, not a function", "build a record with braces: `C { ... }`"},
 	})
 }
@@ -162,7 +162,7 @@ func TestRecordsAndWith(t *testing.T) {
 		{"variant built with braces", "type S = | C(r: Float)\nlet c = C { r: 1.0 }", "`C` is a variant, not a record",
 			"build a variant with parentheses: `C(r)`"},
 		{"reading a missing field", "type P {\n  a: Int\n}\nlet x = P { a: 1 }.b", "a P has no field or method `b`", "its fields are a"},
-		{"with on a non-record", "let x = 1 with { a: 2 }", "`with` copies a record, but this is not one", ""},
+		{"with on a non-record", "let x = 1 with { a: 2 }", "internal error: `with` copies a record, but this is not one", "this is a bug in Fennic, not in your program: the type checker should have refused it. Please report it with this program"},
 	})
 }
 
@@ -208,8 +208,8 @@ func TestFailures(t *testing.T) {
 	errCases(t, []errCase{
 		{"uncaught at top level", `let t = fs.read("nope.txt")!`, `cannot read "nope.txt": file not found`,
 			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `fs.read(\"nope.txt\") else \"\"`"},
-		{"uncaught from a function has no type hint", "fn f() -> Str! { fs.read(\"nope.txt\")! }\nlet t = f()!", `cannot read "nope.txt": file not found`,
-			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `f() else <fallback value>`"},
+		{"uncaught without the checker suggests a handler", "fn f() -> Str! { fs.read(\"nope.txt\")! }\nlet t = f()!", `cannot read "nope.txt": file not found`,
+			"`!` passes a failure to the caller, but top-level code has no caller. Handle it here with `else`, for example `f() else err -> ...`"},
 	})
 }
 
@@ -226,7 +226,7 @@ func TestPipelinesAndBuiltins(t *testing.T) {
 	})
 	errCases(t, []errCase{
 		{"filter needs bool", `let x = [1] |> filter(n -> n)`, "filter's function must return a Bool", "give filter a function that returns a Bool, like `x -> x > 0`"},
-		{"len of int", `let x = len(3)`, "`len` needs a List or a Str, but was given an Int", ""},
+		{"len of int", `let x = len(3)`, "internal error: `len` needs a List or a Str, but was given an Int", "this is a bug in Fennic, not in your program: the type checker should have refused it. Please report it with this program"},
 		{"take negative", `let x = [1] |> take(-1)`, "take needs a count that is an Int of 0 or more", "write a count, like `take(10)`"},
 		{"sort mixed keys", `let x = [1, "a"] |> sort_by(v -> v)`, "sort_by keys must all be one kind, but found a Str and an Int", "return the same kind of key for every element"},
 		{"sort unorderable keys", `let x = [[1], [2]] |> sort_by(v -> v)`, "sort_by cannot order List keys", "return an Int, a Float or a Str from the key function"},
@@ -270,7 +270,7 @@ func TestAssertAtTopLevel(t *testing.T) {
 		{"comparison", "assert 1 + 1 == 3", "assertion failed: left is 2, right is 3", "outside a `test` block a failed assert stops the program"},
 		{"strings quoted", `assert "a" == "b"`, `assertion failed: left is "a", right is "b"`, "outside a `test` block a failed assert stops the program"},
 		{"plain condition", "assert 1 > 2", "assertion failed: the condition is false", "outside a `test` block a failed assert stops the program"},
-		{"not a bool", "assert 1", "assert needs a Bool, but this is a Int", "assert a comparison, like `assert x == 3`"},
+		{"not a bool", "assert 1", "assert needs a Bool, but this is an Int", "assert a comparison, like `assert x == 3`"},
 	})
 }
 

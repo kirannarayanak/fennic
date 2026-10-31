@@ -23,7 +23,8 @@ type Interp struct {
 	variants map[string]*VariantType
 	methods  map[string]map[string]*Func // type name -> method name -> method
 
-	targets map[ast.Node]types.Type // what each json.parse or csv.read call builds
+	targets   map[ast.Node]types.Type       // what each json.parse or csv.read call builds
+	fallbacks map[*ast.PropagateExpr]string // what to suggest after `else` for a `!` that stops the program
 
 	inMain bool // running `fn main`, for the wording of errors
 
@@ -77,6 +78,13 @@ type callSite struct {
 
 func (in *Interp) fail(n ast.Node, help, format string, args ...any) {
 	panic(&RuntimeError{diag.Diagnostic{Pos: n.Pos(), End: n.End(), Msg: fmt.Sprintf(format, args...), Help: help}})
+}
+
+// internal reports a mistake the type checker refuses before anything runs.
+// Reaching one is a bug in Fennic, and the message says so.
+func (in *Interp) internal(n ast.Node, format string, args ...any) {
+	in.fail(n, "this is a bug in Fennic, not in your program: the type checker should have refused it. Please report it with this program",
+		"internal error: "+format, args...)
 }
 
 // New prepares a program to run: it registers every type, function and
@@ -134,6 +142,10 @@ func New(file *ast.File, src, dir string, out, errw io.Writer) *Interp {
 // SetTargets tells json.parse and csv.read what each call should build, as
 // decided by the type checker. Without it json.parse builds untyped records.
 func (in *Interp) SetTargets(t map[ast.Node]types.Type) { in.targets = t }
+
+// SetFallbacks gives, for each `!` that can stop the program, the fallback
+// its message suggests, as the type checker chose it.
+func (in *Interp) SetFallbacks(f map[*ast.PropagateExpr]string) { in.fallbacks = f }
 
 func (in *Interp) constructor(vt *VariantType) *Builtin {
 	return &Builtin{Name: vt.Name, Fn: func(in *Interp, call *callSite, args []Value) Value {
@@ -229,8 +241,11 @@ func (in *Interp) toError(r any) error {
 		}
 		text := in.src[x.Pos().Offset:x.End().Offset]
 		fallback := r.failure.Fallback
+		if pe, ok := r.at.(*ast.PropagateExpr); ok && in.fallbacks[pe] != "" {
+			fallback = in.fallbacks[pe]
+		}
 		if fallback == "" {
-			fallback = "<fallback value>"
+			fallback = "err -> ..."
 		}
 		where := "top-level code"
 		if in.inMain {
@@ -292,9 +307,9 @@ func (in *Interp) call(fn Value, args []Value, site *callSite) Value {
 		if _, ok := in.records[f.Name]; ok {
 			in.fail(site.node, fmt.Sprintf("build a record with braces: `%s { ... }`", f.Name), "`%s` is a record type, not a function", f.Name)
 		}
-		in.fail(site.node, "", "`%s` is a type, not a function", f.Name)
+		in.internal(site.node, "`%s` is a type, not a function", f.Name)
 	}
-	in.fail(site.node, "", "this is a %s, not a function, so it cannot be called", kindName(fn))
+	in.internal(site.node, "this is %s, not a function, so it cannot be called", article(kindName(fn)))
 	return nil
 }
 
@@ -333,7 +348,7 @@ func (in *Interp) callFunc(f *Func, self Value, args []Value, site *callSite) (r
 
 func (in *Interp) callClosure(c *Closure, args []Value, site *callSite) (result Value) {
 	if len(args) != len(c.Params) {
-		in.fail(site.node, "", "this function takes %d %s, but was given %d",
+		in.internal(site.node, "this function takes %d %s, but was given %d",
 			len(c.Params), plural(len(c.Params), "argument", "arguments"), len(args))
 	}
 	env := NewEnv(c.Env)

@@ -57,6 +57,7 @@ func Main(args []string, stdout, stderr io.Writer) int {
 
 	in := interp.New(file, src, filepath.Dir(path), stdout, stderr)
 	in.SetTargets(info.Targets)
+	in.SetFallbacks(info.Fallbacks)
 	if err := in.Run(); err != nil {
 		render(stderr, err.(*interp.RuntimeError).Diag)
 		return 1

@@ -35,7 +35,7 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		}
 		ok, isBool := cond.(bool)
 		if !isBool {
-			in.fail(s.Cond, "assert a comparison, like `assert x == 3`", "assert needs a Bool, but this is a %s", kindName(cond))
+			in.fail(s.Cond, "assert a comparison, like `assert x == 3`", "assert needs a Bool, but this is %s", article(kindName(cond)))
 		}
 		if !ok {
 			panic(a)
@@ -66,7 +66,7 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		}
 		items, ok := over.(*List)
 		if !ok {
-			in.fail(s.In, "", "`for` goes over a List")
+			in.internal(s.In, "`for` goes over a List")
 		}
 		for _, item := range items.Elems {
 			scope := NewEnv(env)
@@ -77,7 +77,7 @@ func (in *Interp) evalStmt(s ast.Stmt, env *Env, t *task) Value {
 		}
 		return Unit
 	}
-	in.fail(s, "", "this statement could not be parsed")
+	in.internal(s, "this statement could not be parsed")
 	return nil
 }
 
@@ -141,7 +141,7 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 		case float64:
 			return -v
 		default:
-			in.fail(e, "", "`-` needs an Int or a Float, but this is a %s", kindName(v))
+			in.internal(e, "`-` needs an Int or a Float, but this is %s", article(kindName(v)))
 		}
 	case *ast.BinaryExpr:
 		return in.evalBinary(e, env, t)
@@ -180,7 +180,7 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 		}
 		l, ok := x.(*List)
 		if !ok {
-			in.fail(e.X, "", "only a List or a Map can be indexed")
+			in.internal(e.X, "only a List or a Map can be indexed")
 		}
 		i := in.eval(e.Index, env, t).(int64)
 		if i < 0 || i >= int64(len(l.Elems)) {
@@ -243,7 +243,7 @@ func (in *Interp) eval(e ast.Expr, env *Env, t *task) Value {
 	case *ast.TogetherExpr:
 		return in.evalTogether(e, env, t)
 	}
-	in.fail(e, "", "this expression could not be parsed")
+	in.internal(e, "this expression could not be parsed")
 	return nil
 }
 
@@ -288,7 +288,7 @@ func (in *Interp) evalRecord(e *ast.RecordLit, env *Env, t *task) Value {
 func (in *Interp) evalWith(e *ast.WithExpr, env *Env, t *task) Value {
 	r, ok := in.eval(e.X, env, t).(*Record)
 	if !ok {
-		in.fail(e.X, "", "`with` copies a record, but this is not one")
+		in.internal(e.X, "`with` copies a record, but this is not one")
 	}
 	fields := append([]Value(nil), r.Fields...)
 	for _, fi := range e.Fields {
@@ -325,7 +325,7 @@ func (in *Interp) member(e *ast.FieldExpr, x Value) Value {
 		if m, ok := v.Members[name]; ok {
 			return m
 		}
-		in.fail(e.Name, "", "`%s` has no `%s`", v.Name, name)
+		in.internal(e.Name, "`%s` has no `%s`", v.Name, name)
 	case *TypeRef:
 		if f, ok := in.methods[v.Name][name]; ok {
 			if f.Decl.HasSelf() {
@@ -499,7 +499,7 @@ func (in *Interp) arith(e *ast.BinaryExpr, l, r Value) Value {
 		in.fail(e, "write the Int as a Float, like `2.0` instead of `2`; Fennic never converts numbers for you",
 			"`%s` cannot mix an Int and a Float", e.Op)
 	}
-	in.fail(e, "", "`%s` needs two numbers, but got %s and %s", e.Op, article(kindName(l)), article(kindName(r)))
+	in.internal(e, "`%s` needs two numbers, but got %s and %s", e.Op, article(kindName(l)), article(kindName(r)))
 	return nil
 }
 

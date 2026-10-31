@@ -347,7 +347,7 @@ func (in *Interp) prelude() *Env {
 
 func (in *Interp) arity(c *callSite, name string, args []Value, n int) {
 	if len(args) != n {
-		in.fail(c.node, "", "`%s` takes %d %s, but was given %d", name, n, plural(n, "argument", "arguments"), len(args))
+		in.internal(c.node, "`%s` takes %d %s, but was given %d", name, n, plural(n, "argument", "arguments"), len(args))
 	}
 }
 
@@ -355,7 +355,7 @@ func (in *Interp) listArg(c *callSite, name string, args []Value, n int) *List {
 	in.arity(c, name, args, n)
 	l, ok := args[0].(*List)
 	if !ok {
-		in.fail(c.node, "", "`%s` needs a List, but was given %s", name, article(kindName(args[0])))
+		in.internal(c.node, "`%s` needs a List, but was given %s", name, article(kindName(args[0])))
 	}
 	return l
 }
@@ -422,7 +422,7 @@ func builtinLen(in *Interp, c *callSite, args []Value) Value {
 	case string:
 		return int64(utf8.RuneCountInString(v))
 	}
-	in.fail(c.node, "", "`len` needs a List or a Str, but was given %s", article(kindName(args[0])))
+	in.internal(c.node, "`len` needs a List or a Str, but was given %s", article(kindName(args[0])))
 	return nil
 }
 
@@ -437,7 +437,7 @@ func builtinSum(in *Interp, c *callSite, args []Value) Value {
 		for _, e := range l.Elems {
 			n, ok := e.(int64)
 			if !ok {
-				in.fail(c.node, "", "`sum` needs a list of all Ints or all Floats")
+				in.internal(c.node, "`sum` needs a list of all Ints or all Floats")
 			}
 			total += n
 		}
@@ -447,13 +447,13 @@ func builtinSum(in *Interp, c *callSite, args []Value) Value {
 		for _, e := range l.Elems {
 			n, ok := e.(float64)
 			if !ok {
-				in.fail(c.node, "", "`sum` needs a list of all Ints or all Floats")
+				in.internal(c.node, "`sum` needs a list of all Ints or all Floats")
 			}
 			total += n
 		}
 		return total
 	}
-	in.fail(c.node, "", "`sum` needs a list of numbers, but it holds %s", article(kindName(l.Elems[0])))
+	in.internal(c.node, "`sum` needs a list of numbers, but it holds %s", article(kindName(l.Elems[0])))
 	return nil
 }
 
