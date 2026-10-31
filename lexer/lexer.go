@@ -465,7 +465,7 @@ func (l *lexer) lexPunct(start token.Pos, r rune) {
 			l.tok(token.Pipe, start)
 		case '|':
 			l.advance()
-			l.illegal(start, "`||` is not an operator in Fennic", "to handle a failure write `or`; there is no boolean `||`")
+			l.illegal(start, "`||` is not an operator in Fennic", "write `or`: `a or b`; to handle a failure, write `else`")
 		default:
 			l.tok(token.Bar, start)
 		}
@@ -512,7 +512,7 @@ func (l *lexer) lexPunct(start token.Pos, r rune) {
 		l.advance()
 		if l.peek() == '&' {
 			l.advance()
-			l.illegal(start, "`&&` is not an operator in Fennic", "there is no boolean `&&`; use `match` on the condition")
+			l.illegal(start, "`&&` is not an operator in Fennic", "write `and`: `a and b`")
 			return
 		}
 		l.illegal(start, "`&` is not an operator in Fennic", "remove it")

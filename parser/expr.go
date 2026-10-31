@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/kirannarayanak/fennic/ast"
 	"github.com/kirannarayanak/fennic/token"
@@ -104,7 +105,35 @@ func (p *parser) parsePipe() ast.Expr {
 			x = &ast.PropagateExpr{Span: p.span(start), X: x}
 		}
 	}
+	if _, piped := x.(*ast.PipeExpr); piped && !p.onNewLine() && isBinaryOp(p.cur().Kind) {
+		return p.pipeThenOperator(x, start)
+	}
 	return x
+}
+
+func isBinaryOp(k token.Kind) bool {
+	for _, level := range binaryLevels {
+		for _, op := range level {
+			if k == op {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// pipeThenOperator reports `xs |> len() == 0`: `|>` binds more loosely than
+// the operator, so the pipeline must be in parentheses. The tree keeps the
+// meaning the author wanted, so the rest of the file checks sensibly.
+func (p *parser) pipeThenOperator(pipe ast.Expr, start token.Pos) ast.Expr {
+	opTok := p.next()
+	r := p.parseBinary(0)
+	fix := fmt.Sprintf("(%s) %s %s", p.src[pipe.Pos().Offset:pipe.End().Offset],
+		opTok.Kind, p.src[r.Pos().Offset:r.End().Offset])
+	p.errorAt(opTok.Pos, opTok.End,
+		fmt.Sprintf("`|>` binds more loosely than `%s`; put the pipeline in parentheses: `%s`", opTok.Kind, fix),
+		"`%s` cannot follow a pipeline without parentheses", opTok.Kind)
+	return &ast.BinaryExpr{Span: p.span(start), Op: opTok.Kind, Left: pipe, Right: r}
 }
 
 // parseCallee parses the right side of `|>`: a name followed by field
@@ -488,6 +517,9 @@ func (p *parser) parseMatch() ast.Expr {
 	p.noRecord = true
 	m.X = p.parseExpr()
 	p.noRecord = saved
+	savedMatched := p.matched
+	p.matched = p.src[m.X.Pos().Offset:m.X.End().Offset]
+	defer func() { p.matched = savedMatched }()
 	if !p.at(token.LBrace) {
 		p.errorHere("write the arms in braces: `match s { Circle(r) -> ... }`", "expected `{` after the matched value, found %s", p.found())
 		return &ast.BadExpr{Span: p.span(start)}
@@ -618,6 +650,15 @@ func (p *parser) parsePattern() ast.Pattern {
 			return elems[0]
 		}
 		return &ast.TuplePattern{Span: p.span(start), Elems: elems}
+	}
+	if p.at(token.None) {
+		x := p.matched
+		if x == "" || strings.ContainsAny(x, " \n") {
+			x = "x"
+		}
+		p.errorHere(fmt.Sprintf("test for it before matching, `if %s == none { ... } else { ... }`, or give a default with `%s ?? ...`", x, x),
+			"`none` is not a pattern")
+		return &ast.WildcardPattern{Span: ast.Span{From: start, To: start}}
 	}
 	p.errorHere("start the arm with a pattern: a variant like `Circle(r)`, a literal, a name, `_`, `(a, b)` or `[x]`",
 		"expected a pattern, found %s", p.found())

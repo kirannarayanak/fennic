@@ -9,6 +9,7 @@ package parser
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"unicode"
 
 	"github.com/kirannarayanak/fennic/ast"
@@ -18,19 +19,21 @@ import (
 )
 
 type parser struct {
+	src      string
 	toks     []token.Token
 	i        int
 	prevEnd  token.Pos
 	diags    []diag.Diagnostic
-	quiet    bool // an error was reported in this statement; drop the rest
-	noRecord bool // `Name {` is not a record literal here (a match scrutinee)
+	quiet    bool   // an error was reported in this statement; drop the rest
+	noRecord bool   // `Name {` is not a record literal here (a match scrutinee)
+	matched  string // the source of the value being matched, for pattern help
 }
 
 // Parse lexes and parses src. The tree is always complete; problems are
 // returned as diagnostics in source order of discovery.
 func Parse(src string) (*ast.File, []diag.Diagnostic) {
 	toks, lexDiags := lexer.Lex(src)
-	p := &parser{toks: toks, diags: lexDiags}
+	p := &parser{src: src, toks: toks, diags: lexDiags}
 	f := p.parseFile()
 	// Lexer and parser problems were found in two passes; report them in
 	// the order they appear in the file.
@@ -408,6 +411,7 @@ func (p *parser) parseTypeDecl() ast.Item {
 			before := p.i
 			fstart := p.cur().Pos
 			fname := p.ident("write a field, like `name: Str`")
+			p.dottedField(fname)
 			p.expect(token.Colon, fmt.Sprintf("give the field a type, like `%s: Str`", fname.Name))
 			ftype := p.parseType()
 			rd.Fields = append(rd.Fields, &ast.FieldDecl{Span: p.span(fstart), Name: fname, Type: ftype})
@@ -434,6 +438,7 @@ func (p *parser) parseTypeDecl() ast.Item {
 				for !p.at(token.RParen) && !p.at(token.EOF) {
 					fstart := p.cur().Pos
 					fname := p.ident("write a field, like `radius: Float`")
+					p.dottedField(fname)
 					p.expect(token.Colon, fmt.Sprintf("give the field a type, like `%s: Float`", fname.Name))
 					ftype := p.parseType()
 					v.Fields = append(v.Fields, &ast.FieldDecl{Span: p.span(fstart), Name: fname, Type: ftype})
@@ -506,4 +511,25 @@ func (p *parser) parseTest() ast.Item {
 	td.Body = p.parseBlock()
 	td.Span = p.span(start)
 	return td
+}
+
+// dottedField reports a field name written with dots, `topic.prefix: Str`,
+// as one name, and skips the rest of it so the field's type still parses.
+// Such names come from JSON keys, which a Map can read.
+func (p *parser) dottedField(name *ast.Ident) {
+	if !p.at(token.Dot) || p.peek(1).Kind != token.Ident {
+		return
+	}
+	parts := []string{name.Name}
+	end := name.End()
+	for p.at(token.Dot) && p.peek(1).Kind == token.Ident {
+		p.next()
+		t := p.next()
+		parts = append(parts, t.Text)
+		end = t.End
+	}
+	p.errorAt(name.Pos(), end,
+		fmt.Sprintf("name the field `%s`; to read JSON keys that contain dots, parse the object into a `Map[Str, Str]`", strings.Join(parts, "_")),
+		"a field name cannot contain `.`")
+	p.quiet = false
 }

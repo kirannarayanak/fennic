@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/kirannarayanak/fennic/ast"
 	"github.com/kirannarayanak/fennic/token"
@@ -91,6 +92,9 @@ func (p *parser) parseStmt() ast.Stmt {
 
 func (p *parser) parseFor() ast.Stmt {
 	start := p.next().Pos // for
+	if p.at(token.LParen) {
+		return p.forTuple(start)
+	}
 	f := &ast.ForStmt{Var: p.ident("name each value, like `for item in items { ... }`, or write `_`")}
 	p.expect(token.In, fmt.Sprintf("write `for %s in ...`", f.Var.Name))
 	saved := p.noRecord
@@ -104,6 +108,52 @@ func (p *parser) parseFor() ast.Stmt {
 		return f
 	}
 	f.Body = p.parseBlock()
+	f.Span = p.span(start)
+	return f
+}
+
+// forTuple reports `for (a, b) in xs`: a loop names one value, which a
+// `match` inside the body takes apart.
+func (p *parser) forTuple(start token.Pos) ast.Stmt {
+	open := p.cur()
+	depth := 0
+	end := open.End
+	for !p.at(token.EOF) {
+		t := p.next()
+		if t.Kind == token.LParen {
+			depth++
+		} else if t.Kind == token.RParen {
+			depth--
+			if depth == 0 {
+				end = t.End
+				break
+			}
+		}
+	}
+	pattern := p.src[open.Pos.Offset:end.Offset]
+	item, items := "item", "items"
+	var in ast.Expr = &ast.BadExpr{Span: p.span(start)}
+	if p.accept(token.In) {
+		saved := p.noRecord
+		p.noRecord = true
+		in = p.parseExpr()
+		p.noRecord = saved
+		if id, ok := in.(*ast.Ident); ok {
+			items = id.Name
+			if one, plural := strings.CutSuffix(id.Name, "s"); plural && one != "" {
+				item = one
+			}
+		}
+	}
+	p.errorAt(open.Pos, end,
+		fmt.Sprintf("name the value, then take it apart with `match`: `for %s in %s { match %s { %s -> ... } }`", item, items, item, pattern),
+		"`for` names one value at a time; it cannot take a tuple apart")
+	f := &ast.ForStmt{Var: &ast.Ident{Span: ast.Span{From: open.Pos, To: end}, Name: "_"}, In: in}
+	if p.at(token.LBrace) {
+		f.Body = p.parseBlock()
+	} else {
+		f.Body = &ast.Block{Span: p.span(p.cur().Pos)}
+	}
 	f.Span = p.span(start)
 	return f
 }
