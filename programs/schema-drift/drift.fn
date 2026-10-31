@@ -47,7 +47,7 @@ fn normalise(t: Str) -> Str {
   let canonical = aliases[base] ?? base
   match parts {
     [_, params] -> "{canonical}({params |> split(")") |> join("") |> split(" ") |> join("")})"
-    _ -> canonical
+    _           -> canonical
   }
 }
 
@@ -61,16 +61,16 @@ fn index(cols: List[Column]) -> Map[Str, Column] {
 
 fn describe(ch: Change) -> Str {
   match ch {
-    Added(c) -> "+ {pad_end(key(c), 24)}{c.data_type}"
-    Removed(c) -> "- {pad_end(key(c), 24)}{c.data_type}"
+    Added(c)               -> "+ {pad_end(key(c), 24)}{c.data_type}"
+    Removed(c)             -> "- {pad_end(key(c), 24)}{c.data_type}"
     Retyped(before, after) -> "~ {pad_end(key(after), 24)}{before.data_type} -> {after.data_type}"
   }
 }
 
 fn table_of(ch: Change) -> Str {
   match ch {
-    Added(c) -> c.table_name
-    Removed(c) -> c.table_name
+    Added(c)          -> c.table_name
+    Removed(c)        -> c.table_name
     Retyped(_, after) -> after.table_name
   }
 }

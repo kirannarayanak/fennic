@@ -2,7 +2,7 @@
 // Results keep input order. If one task fails, the others are cancelled.
 let files = ["data/a.txt", "data/b.txt", "data/c.txt"]
 
-let pages = together {              // scopes its spawns, returns its last expression
+let pages = together { // scopes its spawns, returns its last expression
   files |> map_par(f -> fs.read(f)!)
 }!
 

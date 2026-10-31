@@ -20,9 +20,9 @@ fn main(args: List[Str]) {
     |> filter(r -> r.amount > 0.0)
     |> group_by(r -> r.region)
     |> map_values(rs -> Summary {
-         total: rs |> sum_by(r -> r.amount),
-         days: rs |> map(r -> r.day) |> unique() |> len(),
-       })
+      total: rs |> sum_by(r -> r.amount),
+      days: rs |> map(r -> r.day) |> unique() |> len(),
+    })
 
   fs.write("summary.json", json.encode(summary))!
   print("wrote {summary.len()} regions")

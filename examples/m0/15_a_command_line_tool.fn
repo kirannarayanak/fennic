@@ -1,8 +1,8 @@
 fn main(args: List[Str]) {
   match args {
-    [path]         -> tally(path, 10)
-    [path, n]      -> tally(path, int.parse(n) else 10)
-    _              -> print("usage: tally <file> [n]")
+    [path]    -> tally(path, 10)
+    [path, n] -> tally(path, int.parse(n) else 10)
+    _         -> print("usage: tally <file> [n]")
   }
 }
 

@@ -4,8 +4,8 @@ type Shape =
 
 fn sides(s: Shape) -> Int {
   match s {
-    Circle(r) -> 0
-    Rect(w, h) -> 4
+    Circle(r)         -> 0
+    Rect(w, h)        -> 4
     Triangle(a, b, c) -> 3
   }
 }

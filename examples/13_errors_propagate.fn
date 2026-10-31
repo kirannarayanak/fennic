@@ -5,7 +5,7 @@ type Config {
 }
 
 fn load(path: Str) -> Config! {
-  let text = fs.read(path)!        // propagate
+  let text = fs.read(path)! // propagate
   json.parse(text)!
 }
 

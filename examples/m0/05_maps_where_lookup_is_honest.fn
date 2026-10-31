@@ -1,6 +1,6 @@
 fn main() {
   var stock = Map{"apples": 3, "pears": 7}
   stock["plums"] = 2
-  let n = stock["figs"] ?? 0     // lookup returns Int?, never crashes
+  let n = stock["figs"] ?? 0 // lookup returns Int?, never crashes
   print("figs: {n}")
 }

@@ -16,8 +16,8 @@ The whole surface, in the order a newcomer meets it. One file is one module, and
 
 ```
 // bindings
-let name = "Kiran"        // immutable
-var count = 0             // mutable
+let name = "Kiran" // immutable
+var count = 0      // mutable
 
 // functions, with interpolation
 fn greet(who: Str) -> Str {
@@ -34,7 +34,7 @@ let top = users
 type User {
   name: Str
   age: Int
-  email: Str?        // optional, there is no null
+  email: Str? // optional, there is no null
 }
 
 // sum types and exhaustive matching
@@ -44,18 +44,18 @@ type Shape =
 
 fn area(s: Shape) -> Float {
   match s {
-    Circle(r) -> 3.14159 * r * r
+    Circle(r)  -> 3.14159 * r * r
     Rect(w, h) -> w * h
   }
 }
 
 // failure is in the type, and visible at the call site
 fn load(path: Str) -> Config! {
-  let text = fs.read(path)!          // propagate upward
+  let text = fs.read(path)! // propagate upward
   json.parse(text)!
 }
 
-let cfg = load("app.json") else Config.default()   // or handle it here
+let cfg = load("app.json") else Config.default() // or handle it here
 
 // generics with constraints
 fn largest[T: Ord](items: List[T]) -> T? {
@@ -127,7 +127,7 @@ fn main() {
     |> filter(n -> n > 3)
     |> map(n -> n * 10)
     |> sort()
-  print(big)       // [40, 50, 60, 90]
+  print(big) // [40, 50, 60, 90]
 }
 ```
 
@@ -137,7 +137,7 @@ fn main() {
 fn main() {
   var stock = Map{"apples": 3, "pears": 7}
   stock["plums"] = 2
-  let n = stock["figs"] ?? 0     // lookup returns Int?, never crashes
+  let n = stock["figs"] ?? 0 // lookup returns Int?, never crashes
   print("figs: {n}")
 }
 ```
@@ -151,7 +151,7 @@ type User {
 }
 
 fn main() {
-  let u = User{name: "Asha", age: 31}
+  let u = User { name: "Asha", age: 31 }
   let older = u with { age: 32 }
   print("{older.name} is {older.age}")
 }
@@ -280,9 +280,9 @@ test "chunk splits evenly and keeps the remainder" {
 ```
 fn main(args: List[Str]) {
   match args {
-    [path]         -> tally(path, 10)
-    [path, n]      -> tally(path, int.parse(n) else 10)
-    _              -> print("usage: tally <file> [n]")
+    [path]    -> tally(path, 10)
+    [path, n] -> tally(path, int.parse(n) else 10)
+    _         -> print("usage: tally <file> [n]")
   }
 }
 ```
@@ -380,9 +380,9 @@ fn main(args: List[Str]) {
     |> filter(r -> r.amount > 0.0)
     |> group_by(r -> r.region)
     |> map_values(rs -> Summary {
-         total: rs |> sum_by(r -> r.amount),
-         days: rs |> map(r -> r.day) |> unique() |> len(),
-       })
+      total: rs |> sum_by(r -> r.amount),
+      days: rs |> map(r -> r.day) |> unique() |> len(),
+    })
 
   fs.write("summary.json", json.encode(summary))!
   print("wrote {summary.len()} regions")
@@ -457,3 +457,12 @@ default.
 13. **Program 20 compares Floats with a Float.** It wrote
     `r.amount > 0`, comparing a Float with an Int, which the type checker
     refuses because implicit conversion is a non-goal. Applied: `0.0`.
+
+## Formatted at M4
+
+The tour and the twenty programs are in the form `fennic fmt` writes, so
+that every Fennic file in the repository is. Six texts changed, in
+spacing only: the tour, and programs 4 and 5 (a trailing comment with
+several spaces before it), 6 (`User { name: ... }` spaced), 15 (match arms
+aligned one space after the longest pattern) and 20 (a record literal
+inside a pipeline indented one level, not aligned under its brace).

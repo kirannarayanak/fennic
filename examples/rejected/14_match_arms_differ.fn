@@ -4,7 +4,7 @@ type Shape =
 
 let s = Rect(2.0, 3.0)
 let d = match s {
-  Circle(r) -> "circle"
+  Circle(r)  -> "circle"
   Rect(w, h) -> w * h
 }
 print("{d}")

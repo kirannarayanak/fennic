@@ -4,7 +4,7 @@ type User {
 }
 
 fn main() {
-  let u = User{name: "Asha", age: 31}
+  let u = User { name: "Asha", age: 31 }
   let older = u with { age: 32 }
   print("{older.name} is {older.age}")
 }

@@ -6,7 +6,7 @@ type User {
 }
 
 let u = User { name: "Kiran", age: 31, email: none }
-let older = u with { age: 32 }    // copy with change
+let older = u with { age: 32 } // copy with change
 print("u: {u.name} is {u.age}")
 print("older: {older.name} is {older.age}")
 

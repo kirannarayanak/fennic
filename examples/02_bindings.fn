@@ -23,5 +23,5 @@ let ready = true
 print("ready: {ready}")
 
 let label = "first"
-let label = "second"   // a new binding shadows the old one
+let label = "second" // a new binding shadows the old one
 print(label)

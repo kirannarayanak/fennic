@@ -3,7 +3,7 @@ interface Sink { fn write(self, line: Str) }
 
 type Console {}
 
-fn Console.write(self, line: Str) { print(line) }   // structural, no impl block
+fn Console.write(self, line: Str) { print(line) } // structural, no impl block
 
 type Prefixed {
   prefix: Str
