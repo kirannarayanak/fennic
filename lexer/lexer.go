@@ -48,6 +48,14 @@ type lexer struct {
 
 	pendingNL  bool
 	pendingPos token.Pos
+
+	comments []Comment
+}
+
+// Comment is a `//` comment, kept for the formatter. Text includes the `//`.
+type Comment struct {
+	Text     string
+	Pos, End token.Pos
 }
 
 // Lex returns every token in src, ending with EOF, and every problem found.
@@ -55,6 +63,14 @@ func Lex(src string) ([]token.Token, []diag.Diagnostic) {
 	l := &lexer{src: src, line: 1, col: 1}
 	l.run()
 	return l.toks, l.diags
+}
+
+// LexComments is Lex that also returns the comments, in source order. The
+// tokens are the same.
+func LexComments(src string) ([]token.Token, []Comment, []diag.Diagnostic) {
+	l := &lexer{src: src, line: 1, col: 1}
+	l.run()
+	return l.toks, l.comments, l.diags
 }
 
 func (l *lexer) pos() token.Pos { return token.Pos{Line: l.line, Col: l.col, Offset: l.off} }
@@ -191,9 +207,12 @@ func (l *lexer) skipSpaceAndComments() {
 		case r == ' ' || r == '\t' || r == '\r':
 			l.advance()
 		case r == '/' && l.peekAt(1) == '/':
+			start := l.pos()
 			for l.off < len(l.src) && l.peek() != '\n' {
 				l.advance()
 			}
+			text := strings.TrimRight(l.src[start.Offset:l.off], " \t\r")
+			l.comments = append(l.comments, Comment{Text: text, Pos: start, End: l.pos()})
 		default:
 			return
 		}

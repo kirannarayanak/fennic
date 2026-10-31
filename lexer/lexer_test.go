@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -293,4 +294,37 @@ func TestM3Tokens(t *testing.T) {
 		{"fallback on the next line continues", "load()\n  else 0", `load ( ) else 0`},
 		{"after and", "a and\nb", `a and b`},
 	})
+}
+
+// Comments are kept on the side for the formatter; the tokens are the same
+// as Lex gives.
+func TestKeptComments(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want []string // "line:col text"
+	}{
+		{"none", "let a = 1", nil},
+		{"own line", "// top\nlet a = 1", []string{"1:1 // top"}},
+		{"trailing, spaces removed", "let a = 1   // one   \nlet b = 2", []string{"1:13 // one"}},
+		{"inside brackets", "let xs = [\n  1, // one\n  2\n]", []string{"2:6 // one"}},
+		{"not in a string", "let s = \"a // b\" // c", []string{"1:18 // c"}},
+		{"text kept", "//   spaced  out", []string{"1:1 //   spaced  out"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			toks, comments, _ := LexComments(c.src)
+			plain, _ := Lex(c.src)
+			if len(toks) != len(plain) {
+				t.Errorf("got %d tokens, Lex gives %d", len(toks), len(plain))
+			}
+			var got []string
+			for _, cm := range comments {
+				got = append(got, fmt.Sprintf("%d:%d %s", cm.Pos.Line, cm.Pos.Col, cm.Text))
+			}
+			if strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
 }
