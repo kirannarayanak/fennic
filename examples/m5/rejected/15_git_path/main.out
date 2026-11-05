@@ -1,0 +1,6 @@
+error: imports from git are not in the language yet
+ --> main.fn:1:8
+  |
+1 | import "github.com/kiran/stats"
+  |        ^^^^^^^^^^^^^^^^^^^^^^^^
+help: copy the file into this project and import it by its path, like `import "stats"`

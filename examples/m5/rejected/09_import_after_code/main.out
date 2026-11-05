@@ -1,0 +1,6 @@
+error: imports go at the top of the file, before anything else
+ --> main.fn:2:1
+  |
+2 | import "stats"
+  | ^^^^^^^^^^^^^^
+help: move this line above `let xs = [1.0, 3.0]`

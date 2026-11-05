@@ -1,0 +1,6 @@
+error: there is no file `stats.fn` to import
+ --> main.fn:1:8
+  |
+1 | import "stats"
+  |        ^^^^^^^
+help: the path is relative to this file's directory; create `stats.fn` there, or correct the path

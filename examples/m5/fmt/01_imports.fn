@@ -1,0 +1,5 @@
+import "shapes"
+import "lib/report" // money lines
+
+let s = shapes.Circle(1.0)
+print(shapes.area(s))

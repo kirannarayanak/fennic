@@ -1,0 +1,21 @@
+// Program 12 of the spec, as a module.
+fn chunk[T](items: List[T], size: Int) -> List[List[T]] {
+  var out = []
+  var batch = []
+  for item in items {
+    batch.push(item)
+    if batch.len() == size {
+      out.push(batch)
+      batch = []
+    }
+  }
+  if batch.len() > 0 {
+    out.push(batch)
+  }
+  out
+}
+
+// A module's tests do not run when another file is tested.
+test "never run from an importer" {
+  assert 1 == 2
+}

@@ -1,0 +1,6 @@
+error: `/` cannot mix an Int and a Float
+ --> stats.fn:2:3
+  |
+2 |   sum(xs) / len(xs)
+  |   ^^^^^^^^^^^^^^^^^
+help: convert the Int with `to_float(len(xs))`, or the Float with `to_int(...)`; Fennic never converts numbers for you

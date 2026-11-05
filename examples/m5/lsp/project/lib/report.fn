@@ -1,0 +1,6 @@
+// Relative to this file: lib/format.fn.
+import "format"
+
+fn line(name: Str, cents: Int) -> Str {
+  "{pad_end(name, 8)}{format.money(cents)}"
+}

@@ -1,0 +1,3 @@
+import "lib/report"
+
+print(report.line("figs", 305))

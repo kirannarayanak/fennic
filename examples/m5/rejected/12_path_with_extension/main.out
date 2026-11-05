@@ -1,0 +1,6 @@
+error: an import names a file without its `.fn`
+ --> main.fn:1:8
+  |
+1 | import "stats.fn"
+  |        ^^^^^^^^^^
+help: write `import "stats"`

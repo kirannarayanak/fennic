@@ -1,0 +1,6 @@
+error: `stats.fn` is imported, so its top level holds only declarations and `let`s
+ --> stats.fn:1:1
+  |
+1 | print("loading stats")
+  | ^^^^^^^^^^^^^^^^^^^^^^
+help: move this into a function, or into the program that imports `stats.fn`

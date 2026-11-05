@@ -1,0 +1,4 @@
+import "lib/report"
+
+print(report.line("apples", 1250))
+print(report.line("figs", 305))

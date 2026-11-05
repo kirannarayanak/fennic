@@ -1,0 +1,6 @@
+error: `fs` is a built-in module, so a file cannot be imported under that name
+ --> main.fn:1:8
+  |
+1 | import "fs"
+  |        ^^^^
+help: rename the file, like `files.fn`, and import that

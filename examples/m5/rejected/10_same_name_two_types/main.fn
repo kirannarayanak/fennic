@@ -1,0 +1,5 @@
+import "a"
+import "b"
+
+let u = a.User { name: "Ada" }
+print(b.greet(u))

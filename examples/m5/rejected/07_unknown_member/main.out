@@ -1,0 +1,6 @@
+error: `stats` has no `meen`
+ --> main.fn:3:13
+  |
+3 | print(stats.meen([1.0, 3.0]))
+  |             ^^^^
+help: did you mean `mean`?

@@ -1,0 +1,6 @@
+error: an imported module cannot have a `var`
+ --> counter.fn:1:1
+  |
+1 | var count = 0
+  | ^^^^^^^^^^^^^
+help: use `let`: what a module shares with the files that import it cannot change

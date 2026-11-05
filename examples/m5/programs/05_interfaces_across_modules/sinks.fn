@@ -1,0 +1,17 @@
+interface Sink { fn write(self, line: Str) }
+
+type Console {
+  prefix: Str
+}
+
+fn Console.write(self, line: Str) {
+  print("{self.prefix}{line}")
+}
+
+fn Console.new(prefix: Str) -> Console {
+  Console { prefix: prefix }
+}
+
+fn emit(s: Sink, lines: List[Str]) {
+  each(lines, l -> s.write(l))
+}

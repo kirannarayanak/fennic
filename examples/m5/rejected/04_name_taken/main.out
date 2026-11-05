@@ -1,0 +1,6 @@
+error: `stats` is already the name of an imported module
+ --> main.fn:3:5
+  |
+3 | let stats = [1.0, 2.0]
+  |     ^^^^^
+help: give the value another name, like `values`

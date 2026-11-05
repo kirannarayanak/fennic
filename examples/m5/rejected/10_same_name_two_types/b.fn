@@ -1,0 +1,7 @@
+type User {
+  name: Str
+}
+
+fn greet(u: User) -> Str {
+  "Hello, {u.name}"
+}

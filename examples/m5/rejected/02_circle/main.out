@@ -1,0 +1,6 @@
+error: imports go in a circle: a.fn → b.fn → a.fn
+ --> b.fn:1:8
+  |
+1 | import "a"
+  |        ^^^
+help: move what the files share into another file that imports neither, and import it from both

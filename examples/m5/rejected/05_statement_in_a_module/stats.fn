@@ -1,0 +1,5 @@
+print("loading stats")
+
+fn mean(xs: List[Float]) -> Float {
+  sum(xs) / to_float(len(xs))
+}

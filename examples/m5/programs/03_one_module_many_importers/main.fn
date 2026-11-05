@@ -1,0 +1,6 @@
+import "tax"
+import "tip"
+
+print("start")
+print(tax.tax(10.0))
+print(tip.tip(10.0))

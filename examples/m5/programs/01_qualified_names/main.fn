@@ -1,0 +1,16 @@
+import "shapes"
+
+fn describe(s: shapes.Shape) -> Str {
+  match s {
+    shapes.Circle(r)  -> "circle {r}"
+    shapes.Rect(w, h) -> "rect {w}x{h}"
+  }
+}
+
+let all = [shapes.Circle(1.0), shapes.square(2.0)]
+for s in all {
+  print("{describe(s)}: {shapes.area(s)}")
+}
+let size = shapes.Size { w: 1.5, h: 2.0 }
+print(size)
+print(size.w)

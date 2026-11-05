@@ -1,0 +1,5 @@
+import "b"
+
+fn one() -> Int {
+  b.two() - 1
+}

@@ -1,0 +1,5 @@
+import "shapes"
+
+fn shapes.Shape.describe(self) -> Str {
+  "a shape"
+}

@@ -1,0 +1,3 @@
+import "stats"
+
+print(stats.mean([1.0, 3.0]))

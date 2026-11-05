@@ -1,0 +1,4 @@
+import "lib/report"
+
+print(report.line("figs", 305))
+print(format.money(305))

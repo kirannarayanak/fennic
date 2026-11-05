@@ -1,0 +1,6 @@
+error: `format` is not imported in this file
+ --> main.fn:4:7
+  |
+4 | print(format.money(305))
+  |       ^^^^^^
+help: `lib/report.fn` imports it; to use it here too, add `import "lib/format"` at the top

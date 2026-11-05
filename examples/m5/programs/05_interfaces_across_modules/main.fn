@@ -1,0 +1,15 @@
+import "sinks"
+
+// Satisfies sinks.Sink: it has the method, wherever it is declared.
+type Shout {
+  times: Int
+}
+
+fn Shout.write(self, line: Str) {
+  print("{line}!")
+}
+
+let c = sinks.Console.new("> ")
+c.write("direct")
+sinks.emit(c, ["a", "b"])
+sinks.emit(Shout { times: 1 }, ["hey"])

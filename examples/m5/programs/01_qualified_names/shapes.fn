@@ -1,0 +1,24 @@
+// A module can be a program too: its main is not run when it is imported.
+type Shape =
+  | Circle(radius: Float)
+  | Rect(w: Float, h: Float)
+
+type Size {
+  w: Float
+  h: Float
+}
+
+fn area(s: Shape) -> Float {
+  match s {
+    Circle(r)  -> 3.0 * r * r
+    Rect(w, h) -> w * h
+  }
+}
+
+fn square(side: Float) -> Shape {
+  Rect(side, side)
+}
+
+fn main() {
+  print("shapes is a program too")
+}

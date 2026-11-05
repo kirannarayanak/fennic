@@ -1,0 +1,4 @@
+fn money(cents: Int) -> Str {
+  let rest = "{cents % 100}"
+  "{cents / 100}.{pad_start(rest, 2, "0")}"
+}

@@ -1,0 +1,7 @@
+// Computed once, however many files import this one.
+let rate = load_rate()
+
+fn load_rate() -> Float {
+  log.warn("reading the rate")
+  0.2
+}

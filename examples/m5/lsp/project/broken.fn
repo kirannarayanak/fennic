@@ -1,0 +1,3 @@
+fn half(n: Int) -> Int {
+  n / 2.0
+}

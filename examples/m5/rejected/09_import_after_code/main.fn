@@ -1,0 +1,4 @@
+let xs = [1.0, 3.0]
+import "stats"
+
+print(stats.mean(xs))

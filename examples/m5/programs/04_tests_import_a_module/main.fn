@@ -1,0 +1,8 @@
+// expect: test
+// Program 14 of the spec, in its own file.
+import "chunk"
+
+test "chunk splits evenly and keeps the remainder" {
+  assert chunk.chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+  assert chunk.chunk([], 3) == []
+}

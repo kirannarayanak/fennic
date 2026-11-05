@@ -1,0 +1,6 @@
+error: an import path is relative to the file that imports it
+ --> main.fn:1:8
+  |
+1 | import "/home/kiran/stats"
+  |        ^^^^^^^^^^^^^^^^^^^
+help: write the path from this file's directory, like `import "lib/stats"` or `import "../stats"`

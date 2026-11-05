@@ -1,0 +1,6 @@
+error: `b.greet` needs a b.User for `u`, but this is an a.User
+ --> main.fn:5:15
+  |
+5 | print(b.greet(u))
+  |               ^
+help: these are two types, declared in a.fn and b.fn; build a `b.User` to pass here

@@ -1,0 +1,6 @@
+error: a method is declared in the file that declares its type, and `Shape` is declared in shapes.fn
+ --> main.fn:3:4
+  |
+3 | fn shapes.Shape.describe(self) -> Str {
+  |    ^^^^^^^^^^^^^^^^^^^^^
+help: add `fn Shape.describe(self) -> Str` to shapes.fn, or write a function here: `fn describe(s: shapes.Shape) -> Str`
